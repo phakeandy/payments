@@ -35,5 +35,19 @@ git switch main && git merge --ff-only upstream/main   # 或 gh repo sync
 ## 文件
 
 - `glossary.zh.md` —— 术语表。读注释卡住先查这个。
-- `map.zh.md` —— 24 集一句话地图（待写）。
+- `map.zh.md` —— 视频 24 集的带时间戳地图（19:42:46，123 个章节）。
+- `tools/lecture.sh` —— 切片 + 转写流水线（`./lecture.sh list` 先看用法）。
+- `tools/episodes.tsv` —— 每集起止时间，脚本读它。
 - `ep11-events.md` —— 逐集精读笔记（待写）。
+
+## 视频转写
+
+```bash
+export LECTURE_URL="https://..."      # 或者写进 tools/url
+cd tools
+./lecture.sh one 11                    # 下第 11 集音频 + 转写成 srt
+```
+
+两个坑已经写进脚本了：本机 `~/.cache/huggingface/token` 里有个过期 token
+（不关掉会 401）；另外默认节点（Vless）限速到 80KB/s，模型下载要切到
+Hysteria2 节点才快。

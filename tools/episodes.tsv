@@ -1,0 +1,25 @@
+# ep	start	end	minutes	branch	title
+1	0:00:00	0:36:29	36	ep01	Build a Production-Grade Payments Backend
+2	0:36:29	1:17:49	41	ep02	Designing a Double-Entry Ledger
+3	1:17:49	2:05:17	47	ep03	Type-Safe SQL with sqlc + pgx
+4	2:05:17	2:55:15	49	ep04	Config, Logging & Errors
+5	2:55:15	3:41:13	45	ep05	The Wallet API
+6	3:41:13	4:27:23	46	ep06	Moving Money Safely
+7	4:27:23	5:15:08	47	ep07	Idempotency Keys
+8	5:15:08	6:08:47	53	ep08	The Auth Service
+9	6:08:47	7:01:26	52	ep09	gRPC Between Services
+10	7:01:26	7:54:50	53	ep10	The API Gateway
+11	7:54:50	8:45:12	50	ep11	Events with NATS JetStream
+12	8:45:12	9:43:02	57	ep12	Transfer Service & Sagas
+13	9:43:02	10:31:32	48	ep13	Notification Service
+14	10:31:32	11:25:37	54	ep14	Observability
+15	11:25:37	12:13:44	48	ep15	Testing Like a Pro
+16	12:13:44	13:00:54	47	ep16	Shipping It
+17	13:00:54	13:53:37	52	ep17	Outbound Webhooks
+18	13:53:37	14:45:53	52	ep18	Multi-currency & FX
+19	14:45:53	15:39:43	53	ep19	Fraud & Risk Checks
+20	15:39:43	16:30:03	50	ep20	Reconciliation & Reporting
+21	16:30:03	17:24:50	54	ep21	Security Hardening
+22	17:24:50	18:13:52	49	ep22	Performance
+23	18:13:52	18:59:46	45	ep23	Kubernetes
+24	18:59:46	19:42:46	43	ep24	Chaos & the Final Demo
