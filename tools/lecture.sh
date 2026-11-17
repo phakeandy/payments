@@ -16,6 +16,9 @@ HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 OUT=${OUT:-$HERE/../media}
 MODEL=${MODEL:-small.en}
 THREADS=${THREADS:-$(nproc)}
+# YouTube 需要：浏览器 cookie 过 bot 检查 + JS runtime 解签名挑战。
+BROWSER=${BROWSER:-chrome}
+YTDLP_ARGS=(--js-runtimes node --remote-components ejs:github --cookies-from-browser "$BROWSER")
 
 # 领域词表：whisper 会把 outbox 听成 outer box、saga 听成 sagger，
 # 把这些词喂给它当先验，术语准确率提升非常明显。
@@ -49,7 +52,7 @@ fetch() {
 	resolve_url
 	mkdir -p "$OUT"
 	echo "→ $name  $start – $end   →  $OUT/$name.m4a" >&2
-	yt-dlp -f bestaudio -x --audio-format m4a \
+	yt-dlp "${YTDLP_ARGS[@]}" -f 249/bestaudio -x --audio-format m4a --concurrent-fragments 4 \
 		--download-sections "*${start}-${end}" \
 		--no-playlist \
 		-o "$OUT/$name.%(ext)s" "$VIDEO"
