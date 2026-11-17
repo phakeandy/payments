@@ -11,8 +11,8 @@ set -euo pipefail
 
 URLFILE=${1:?用法: fetch-audio.sh <url文件> <输出文件> [块数] [并发数]}
 OUT=${2:?}
-CHUNKS=${3:-48}
-PAR=${4:-6}
+CHUNKS=${3:-80}
+PAR=${4:-20}
 
 URL=$(tr -d '\n' <"$URLFILE")
 [ -n "$URL" ] || { echo "URL 文件是空的" >&2; exit 1; }
@@ -22,7 +22,7 @@ SIZE=$(curl -sS -L --max-redirs 5 -D - -o /dev/null -r 0-1023 "$URL" | tr -d "\r
 [ -n "${SIZE:-}" ] && [ "$SIZE" -gt 0 ] 2>/dev/null || { echo "拿不到文件大小（直链可能已过期，重跑 yt-dlp -g）" >&2; exit 1; }
 
 CS=$(((SIZE + CHUNKS - 1) / CHUNKS))
-TMP=$(mktemp -d)
+TMP=$(mktemp -d "${OUT%/*}/.parts-XXXXXX")
 echo "总大小 $((SIZE / 1024 / 1024)) MB，分 $CHUNKS 块（每块 ~$((CS / 1024 / 1024)) MB），$PAR 并发" >&2
 
 export URL CS SIZE TMP
