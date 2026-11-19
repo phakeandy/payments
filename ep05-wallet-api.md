@@ -19,6 +19,7 @@
 ## 1. 五个端点 + 三条约定
 
 > `[2:57:28]` Five endpoints: a `POST /v1/wallets` opens a wallet, a `GET` on a wallet's ID reads it back, its balance has its own URL, `POST` to its deposits adds money, and entries list the wallet's ledger entries one page at a time.
+> **译文**：五个端点：POST /v1/wallets 开一个钱包，对钱包 ID 的 GET 把它读回来，它的余额有自己的 URL，对它的 deposits 发 POST 加钱，entries 一页一页列出这个钱包的账本分录。
 
 | 方法   | 路径                        | 语义                   |
 | ------ | --------------------------- | ---------------------- |
@@ -29,6 +30,7 @@
 | `GET`  | `/v1/wallets/{id}/entries`  | 分页流水               |
 
 > `[2:57:47]` Notice the conventions: **the path names the thing, and the HTTP method says what we do with it.** Everything lives under `v1`, so the day we need a breaking change, **a v2 can live right next to it while existing clients keep working.**
+> **译文**：注意这些约定：路径命名那个东西，HTTP 方法说明我们拿它做什么。一切都在 v1 之下，所以哪天需要破坏性改动，v2 可以直接住在旁边，而现有客户端继续能用。
 
 ### 1.1 为什么余额是独立的 URL
 
@@ -37,6 +39,7 @@
 ### 1.2 `GET` 安全、`POST` 不幂等——这句话是 EP7 的引信
 
 > `[2:58:13]` One more property of these methods matters for money: **`GET` is safe — it never changes anything, so clients, proxies, and browsers may retry it freely. `POST` is neither safe nor idempotent — sending the same POST twice can create two of something, like two deposits.** Keep that in mind because **it's exactly the problem idempotency keys solve in episode 7.**
+> **译文**：这些方法还有一个属性对钱很重要：GET 是安全的——它从不改变任何东西，所以客户端、代理和浏览器可以随意重试。POST 既不安全也不幂等——同一个 POST 发两次可能造出两个东西，比如两笔充值。记住这一点，因为那正是第 7 集幂等键要解决的问题。
 
 💡 注意他不是说"POST 不好"。他说的是：**HTTP 语义已经告诉你 `POST /deposits` 会重复扣钱**。EP7 不是"加个功能"，是**修补一个由协议语义决定的结构性缺口**。
 
@@ -57,6 +60,7 @@
 ### 2.2 为什么不能放进 store
 
 > `[2:59:37]` And why not put the rules in the store? **Because the store's job is SQL. Keeping each layer to one job is what keeps them small enough to read, and easy to test.**
+> **译文**：那为什么不把规则放进 store？因为 store 的职责是 SQL。让每一层只干一件事，它们才小到能读、容易测。
 
 ### 2.3 一张"谁能拒绝什么"的表
 
@@ -68,14 +72,17 @@
 | **PostgreSQL**    | **上面三层全都失手时** | CHECK / FK / 延迟触发器            | `23514` / `23505` |
 
 > `[3:28:36]` ...**two kinds of client errors, and they come from different layers.** A request we can't even **read** — broken JSON, an unknown field, or a number where we need an integer — is a **400**, from the decoder. A request that's **perfectly readable, but asks for something we won't do** — like a negative amount, or an unsupported currency — is a **422**, from the service, with a message per field.
+> **译文**：……两类客户端错误，而且它们来自不同的层。一个我们连读都读不了的请求——坏 JSON、未知字段、该给整数的地方给了数字——是 400，来自解码器。一个完全读得懂、但要求我们不做的事的请求——比如负数金额、不支持的币种——是 422，来自服务层，每个字段一条消息。
 
 > `[3:29:05]` **Clients can treat the first as a bug in their code, and the second as something to show the user.**
+> **译文**：客户端可以把前者当成自己代码里的 bug，把后者展示给用户。
 
 ---
 
 ## 3. 钱在线上长什么样
 
 > `[3:00:03]` ...**an amount is an object with two fields: an integer number of minor units, and an ISO currency code.** $10.50 is `1050` in USD. **The currency always travels with the amount**, because **a bare number like 10.50 means nothing on its own.**
+> **译文**：……金额是一个带两个字段的对象：以最小单位计数的整数，以及一个 ISO 币种代码。$10.50 在 USD 下是 1050。币种永远跟着金额一起走，因为像 10.50 这样的裸数字本身没有意义。
 
 ```go
 type Money struct {
@@ -117,6 +124,7 @@ type Money struct {
 ### 3.4 int64 够用吗
 
 > `[3:01:34]` ...an int64 holds **over 9 quintillion minor units**. **JavaScript numbers are only exact up to 2^53**, about 9 quadrillion — which is still **$93 trillion in cents**. ...we cap a single deposit at **100 million minor units, a million dollars**, so **a typo with a few extra zeros gets caught**, and no amount ever gets anywhere near those limits.
+> **译文**：……int64 能装下超过 9 百亿亿个最小单位。JavaScript 的数字只在 2^53 以内精确，大约 9 千万亿——那仍然是以分为单位的 93 万亿美元。……我们把单笔充值上限定在 1 亿最小单位、一百万美元，这样多打几个零的笔误会被抓住，而且任何金额都永远不会接近那些界限。
 
 | 类型        | 精确上限           | 折算成美分   |
 | ----------- | ------------------ | ------------ |
@@ -159,6 +167,7 @@ Alice钱包              （减少）        +2500       负债，credit-normal
 ```
 
 > `[3:03:19]` That equation — **what we hold equals what we owe** — **is the whole point of double-entry, and our database enforces it.**
+> **译文**：那个等式——我们持有的等于我们欠的——就是复式记账的全部要点，而我们的数据库强制执行它。
 
 💡 这段解释了一个很多人学复式记账时卡住的地方：**为什么"充值"需要两条分录？** 因为**钱是从系统外部进来的**，而外部必须被建模成一个账户，否则分录就不平衡。这个"外部账户"在会计里叫**对方科目**，在这里叫 settlement。
 
@@ -189,6 +198,7 @@ Alice钱包              （减少）        +2500       负债，credit-normal
 ### 5.1 给已有表加 NOT NULL 列，要三步
 
 > `[3:05:46]` ...adding a NOT NULL column to a table that may already have rows **takes three steps**: add it **with a default**, so existing rows get a value — **since PostgreSQL 11 that's cheap even on a huge table, with no rewrite** — then **fix the rows that should be different**, and **drop the default**, so from now on **every insert has to say which kind it means: a forgotten kind becomes an error, instead of a silent wallet.**
+> **译文**：……给一个可能已有数据的表加 NOT NULL 列分三步：先带默认值加上，这样已有行拿到值——从 PostgreSQL 11 起，即便在巨大的表上这也很便宜，不用重写——然后把那些该不一样的行改掉，最后把默认值去掉，这样从现在起每次插入都必须说明它是哪种：漏掉 kind 会变成一个错误，而不是一个静默的钱包。
 
 ```sql
 ALTER TABLE accounts ADD COLUMN kind account_kind NOT NULL DEFAULT 'wallet';
@@ -207,6 +217,7 @@ ALTER TABLE accounts ALTER COLUMN kind DROP DEFAULT;
 ### 5.2 `class` 用 CHECK 约束绑定
 
 > `[3:06:17]` ...then a check constraint that **ties the kind to the owner**. It compares two booleans — **is this a wallet, and does it have an owner** — they must be equal. So **a wallet without an owner, or a system account with one, simply can't exist.**
+> **译文**：……然后是一个把 kind 和 owner 绑在一起的 check 约束。它比较两个布尔值——这是不是一个钱包，它有没有主人——它们必须相等。所以一个没有主人的钱包，或者一个带主人的系统账户，根本不可能存在。
 
 ```sql
 CHECK ((kind = 'wallet') = (owner_id IS NOT NULL))
@@ -217,6 +228,7 @@ CHECK ((kind = 'wallet') = (owner_id IS NOT NULL))
 ### 5.3 两个 partial unique index
 
 > `[3:06:32]` **A partial index only covers the rows that match its WHERE clause.**
+> **译文**：部分索引只覆盖匹配它 WHERE 子句的那些行。
 
 ```sql
 -- 一个 owner 每种币种只能有一个钱包
@@ -227,8 +239,10 @@ CREATE UNIQUE INDEX ON accounts (name, currency) WHERE kind = 'system';
 ```
 
 > `[3:06:50]` The first says **an owner can have one wallet per currency** — that's a product rule, **and it lives in the database**, so two simultaneous requests can't both create one.
+> **译文**：第一条说一个主人在每种币种下只能有一个钱包——这是产品规则，而它住在数据库里，所以两个同时到达的请求不可能都建成功。
 
 > `[3:07:04]` The second makes system accounts unique by name and currency, so **our code can look up the `settlement` account by name and know there's exactly one.**
+> **译文**：第二条让系统账户按名字加币种唯一，这样我们的代码可以按名字查到 settlement 账户，并知道它恰好只有一个。
 
 💡 为什么必须 partial？因为普通唯一索引会让 `(owner_id, currency)` 上的 `NULL` 表现不对——**Postgres 里 `NULL` 不等于 `NULL`**，所以多个系统账户（owner 为 NULL）在普通唯一索引下**不会冲突**。partial index 用 `WHERE kind='system'` 把两类行分开，各自约束。
 
@@ -240,12 +254,14 @@ ON CONFLICT (name, currency) WHERE kind = 'system' DO NOTHING;
 ```
 
 > `[3:07:34]` ...`ON CONFLICT DO NOTHING` makes **the seed safe to run twice**... **The conflict target repeats our partial index's WHERE clause, so PostgreSQL knows exactly which rule we mean.**
+> **译文**：……ON CONFLICT DO NOTHING 让种子脚本重复跑也安全……冲突目标重复了我们部分索引的 WHERE 子句，所以 PostgreSQL 明确知道我们指的是哪条规则。
 
 💡 这是个经常被忘的语法要求：partial index 的 `ON CONFLICT` **目标**必须包含同样的 `WHERE`，否则 Postgres 找不到你指的是哪个索引。
 
 ### 5.5 索引要匹配查询的形状
 
 > `[3:07:48]` And one more index, for the entries endpoint: we'll list one wallet's entries, **newest first, by id**. **An index on `account_id` and then `id`** lets Postgres **jump straight to one account's entries, already in order**. It serves lookups by `account_id` alone as well, **so the old index can go.**
+> **译文**：再一个索引，给 entries 端点用：我们要列一个钱包的分录，最新的在前，按 id。先 account_id 再 id 的索引让 Postgres 直接跳到某个账户的分录、而且已经是排好序的。它也顺带服务只按 account_id 的查找，所以旧索引可以删了。
 
 ```sql
 CREATE INDEX ON entries (account_id, id);
@@ -255,10 +271,12 @@ DROP INDEX entries_account_id_idx;  -- 被上面这个前缀覆盖了
 💡 复合索引 `(a, b)` 能服务 `WHERE a=?`（最左前缀），所以单列索引 `(a)` 是冗余的。**多一个索引就多一份写放大。**
 
 > `[3:08:17]` On a big production table, you'd build it with `CREATE INDEX CONCURRENTLY`, **outside a transaction**, so writes aren't blocked while it builds. Our table is tiny, so this is fine.
+> **译文**：在大的生产表上，你会用 CREATE INDEX CONCURRENTLY 在事务外建它，这样建的时候写不被阻塞。我们的表很小，所以这样没问题。
 
 ### 5.6 down migration 故意不删 settlement
 
 > `[3:08:47]` Notice what it **doesn't** do: **delete the settlement accounts. Once they have entries they can't be deleted — and they shouldn't be.** Without a `kind` column, an account with no owner is a system account again, just like before.
+> **译文**：注意它没做什么：删掉 settlement 账户。一旦它们有了分录就不能删——也不该删。没有 kind 列的话，一个没有主人的账户就又是系统账户，和以前一样。
 
 💡 **回滚不是"逆向执行"，是"回到一个仍然自洽的状态"。** data 的删除几乎永远不该放在 down migration 里。
 
@@ -281,6 +299,7 @@ DROP INDEX entries_account_id_idx;  -- 被上面这个前缀覆盖了
 **译文**：`make generate` 跑 sqlc。**它也会读新的迁移**，所以生成的 model 现在有 `account_kind` 枚举类型、每个值一个常量、一个 `Valid` 方法，而 account 结构体的 `kind` 字段在**最后面——在最后面，因为 `ALTER TABLE` 把列加在最后，而 sqlc 遵循真实的列顺序。**
 
 > `[3:11:03]` **Every `SELECT *` query picked up the new column, with no changes to the SQL.**
+> **译文**：每个 SELECT * 查询都自动带上了新列，SQL 一行没改。
 
 💡 这就是 EP3 里 `RETURNING *` / `SELECT *` 那个设计的回报：**加列不需要改任何查询**，因为 sqlc 在生成时展开星号。
 
@@ -299,6 +318,7 @@ if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == "23505"
 ```
 
 > `[3:12:32]` ...the comment **names it, because nobody remembers these numbers.**
+> **译文**：……注释把它写了出来，因为没人记得这些数字。
 
 💡 **这是"先查再插"（check-then-act）的通用解药**，和 EP6 的锁问题同源：**任何"读一下再决定"的检查都有 TOCTOU 窗口；能靠约束表达的，就靠约束。**
 
@@ -353,6 +373,7 @@ if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == "23505"
 ### ⑥ 两个错误一起报
 
 > `[3:18:18]` ...and **we only return the validation error after both checks**, so **a client with two mistakes hears about both at once.**
+> **译文**：……而且我们在两个检查都做完之后才返回校验错误，所以犯了两个错的客户端一次就听到两个。
 
 ---
 
@@ -360,11 +381,13 @@ if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == "23505"
 
 > `[3:18:34]` ...next, the settlement account for the wallet's currency. **And look closely at this error**: the store returns `ErrAccountNotFound`, which **wraps** `apperr.ErrNotFound`. **If we wrapped it with `%w`, the client would get a 404 for a problem that's entirely ours.** **`%v` keeps the text but breaks the chain, so it becomes a 500, and it gets logged.**
 
-> `[3:19:04]` **Wrapping is a decision about your API, not just about formatting.**
+> `[3:18:34]` ...next, the settlement account for the wallet's currency. **And look closely at this error**: the store returns `ErrAccountNotFound`, which **wraps** `apperr.ErrNotFound`. **If we wrapped it with `%w`, the client would get a 404 for a problem that's entirely ours.** **`%v` keeps the text but breaks the chain, so it becomes a 500, and it gets logged.**
 
 **译文**：……然后是钱包币种对应的 settlement 账户。**仔细看这个错误**：store 返回 `ErrAccountNotFound`，它**包装了** `apperr.ErrNotFound`。**如果我们用 `%w` 包装它，客户端就会得到一个 404——而这个完全是我们自己的问题。** **`%v` 保留文本但切断链条，所以它变成 500，并被记录。**
 
-> `[3:19:04]` **包装是一个关于你的 API 的决定，不只是关于格式化的。**
+> `[3:19:04]` **Wrapping is a decision about your API, not just about formatting.**
+
+**译文**：**包装是一个关于你的 API 的决定，不只是关于格式化的。**
 
 ```go
 // 错：客户端拿到 404，客户会以为"是我的钱包 ID 错了"
@@ -406,6 +429,7 @@ store 找不到 settlement 账户
 ### 10.2 keyset：两个 bug 一起消失
 
 > `[3:20:51]` **Instead of a position, the client sends the ID of the last entry it saw, and we ask for entries with a smaller ID.** With the index we just added on `(account_id, id)`, **Postgres jumps straight to that point, so page 500 is as fast as page 1.** And **new entries get bigger IDs, so they can't push anything around.**
+> **译文**：客户端不发位置，而是发它看到的最后一条分录的 ID，然后我们要 ID 更小的那些分录。用我们刚在 (account_id, id) 上建的索引，Postgres 直接跳到那个点，所以第 500 页和第 1 页一样快。而且新分录拿到更大的 ID，所以它们不会把任何东西挤动。
 
 |                | OFFSET         | keyset           |
 | -------------- | -------------- | ---------------- |
@@ -416,6 +440,7 @@ store 找不到 settlement 账户
 ### 10.3 `limit + 1`：不用 COUNT 就知道有没有下一页
 
 > `[3:21:21]` We also **fetch one row more than the page size. If it comes back, there's a next page, no count query needed**, and the client gets a cursor.
+> **译文**：我们还多取一行。如果它回来了，就有下一页，不需要 count 查询，客户端拿到一个游标。
 
 💡 `COUNT(*)` 在一个百万行的表上是**全表扫描**。而"多取一行"是 O(1) 的。
 
@@ -428,10 +453,12 @@ store 找不到 settlement 账户
 💡 "It's not a secret" 这句很重要——**不要把它做成加密的**，那是过度的。它的作用是**封装**（封装变化），不是**安全**。
 
 > `[3:22:05]` **The tradeoff is that you can't jump to page 50. For an activity feed, nobody needs to.**
+> **译文**：代价是你不能跳到第 50 页。对一个动态流来说，没人需要。
 
 ### 10.5 一个隐藏的溢出风险
 
 > `[3:22:55]` ...we ask for `limit + 1`, and **the conversion to int32 is safe, because we just checked that the limit is at most 100.**
+> **译文**：……我们要 limit + 1，而到 int32 的转换是安全的，因为我们刚检查过 limit 最多 100。
 
 💡 他在注释里写明了这个推理：**`limit ≤ 100` 已经校验过 → `limit+1 ≤ 101` → `int32` 转换不会溢出**。这类"为什么这里安全"的注释，比代码本身更有价值。
 
@@ -462,18 +489,21 @@ store 找不到 settlement 账户
 ### 11.3 UUID 解析失败返回 404，不是 400
 
 > `[3:26:43]` `walletID` reads the `{id}` with `PathValue`. **If it isn't a UUID, it can't name a wallet, so it's a 404 — exactly like an unknown one.** A 400 would be defensible too, but **this way clients have one case to handle: there's no wallet at this URL.**
+> **译文**：walletID 用 PathValue 读 {id}。如果它不是 UUID，它就不可能命名一个钱包，所以是 404——和未知钱包完全一样。给 400 也说得过去，但这样客户端只需要处理一种情况：这个 URL 上没有钱包。
 
 💡 和 EP4 `[2:47:16]` 的"错方法返回 404 而不是 405"是同一条原则：**减少客户端的分支数**。
 
 ### 11.4 `201 + Location`，并且返回资源本身
 
 > `[3:27:34]` ...sets a `Location` header pointing at the new wallet, which is **the standard HTTP way to say where a created resource lives**, and writes a 201 **with the wallet itself, so the client doesn't need a second request to see it**.
+> **译文**：……设一个指向新钱包的 Location 头，这是 HTTP 里表示「创建出来的资源住在哪里」的标准做法，并写 201，响应体里带钱包本身，这样客户端不用再发第二个请求去看它。
 
 💡 两个都做：`Location` 是规范，返回 body 是**省一次往返**。很多 API 只做一个。
 
 ### 11.5 空数组不是 null
 
 > `[3:29:19]` We build the response with `make` at the right length, **so an empty page is an empty JSON array, never `null`. Clients can always loop over `entries` without checking for `null` first.**
+> **译文**：我们用 make 按正确长度构造响应，所以一个空页是一个空 JSON 数组，永远不会是 null。客户端可以总是对 entries 做循环，不用先检查 null。
 
 💡 和 EP3 的 `emit_empty_slices` 是同一个决定在两层落地。
 
@@ -488,6 +518,7 @@ store 找不到 settlement 账户
 ### 12.1 表驱动，但**不能并行**
 
 > `[3:36:33]` **The comment matters: these rows depend on each other, so the subtests run in order, not in parallel.**
+> **译文**：那条注释很重要：这些行互相依赖，所以子测试按顺序跑，不并行。
 
 | #   | 请求                  | 期望 |
 | --- | --------------------- | ---- |

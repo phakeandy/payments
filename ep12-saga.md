@@ -13,6 +13,7 @@
 ## 0. 为什么转账需要自己的服务
 
 > `[8:46:23]` Right now, a transfer is **one database transaction inside the wallet**. That works **because both wallets live in one database**. But **a real transfer is a process**:
+> **译文**：现在，一笔转账是钱包内部的一个数据库事务。这能成立是因为两个钱包都住在同一个数据库里。但一笔真实的转账是一个过程：
 
 ```
 ① 接受它
@@ -37,6 +38,7 @@
 ## 1. 为什么不用两阶段提交（2PC）
 
 > `[8:47:27]` The textbook answer for atomic work across systems is a **distributed transaction — two-phase commit**: a coordinator asks every participant to **prepare**, and once they all say yes, tells them to **commit**. **But**:
+> **译文**：跨系统原子工作的教科书答案是分布式事务——两阶段提交：协调者请每个参与者 prepare，等它们都说不反对，再告诉它们 commit。但是：
 
 | # | 2PC 的问题 | 原话 |
 |---|---|---|
@@ -46,6 +48,7 @@
 | 4 | **必须同时在线** | `[8:48:06]` and **all of them must be up at the same moment, for every transfer** |
 
 > `[8:48:06]` **Each service owns its data, and no transaction spans them. We need a different tool.**
+> **译文**：每个服务拥有自己的数据，没有事务横跨它们。我们需要另一种工具。
 
 💡 第 4 条和 EP11 里他说 2PC 的理由完全一样（`[8:10:47]`）：
 
@@ -95,6 +98,7 @@
 ## 3. 编排 vs 协同（orchestration vs choreography）
 
 > `[8:49:21]` Two ways to run a saga: with **orchestration**, one orchestrator decides each next step from the saga state. With **choreography**, each service reacts to the previous one's event.
+> **译文**：跑 saga 有两种方式：编排（orchestration），一个编排器根据 saga 状态决定下一步；协同（choreography），每个服务对上一个服务的事件做出反应。
 
 | | 编排（orchestration） | 协同（choreography） |
 |---|---|---|
@@ -208,6 +212,7 @@ CHECK ((status = 'held') = (settled_tx IS NULL))
 ### 5.2 `frozen` 列
 
 > `[8:54:46]` And a new column, **`frozen`**. **A frozen wallet can't send or receive money** — a dispute, a compliance check. **It's what we'll use to make a transfer fail halfway**, and episode 19 builds on it.
+> **译文**：还有一个新列，frozen。被冻结的钱包不能收也不能发钱——争议、合规检查。它就是我们用来让一笔转账在中途失败的，第 19 集会在它之上继续建。
 
 ---
 
@@ -247,6 +252,7 @@ func rejection(err error) error {
 ### ① `hold`：按用户查询钱包
 
 > `[8:56:59]` ...finds the wallet, **as the user, so other people's wallets don't exist.**
+> **译文**：……找到钱包，是以用户身份去找的，所以别人的钱包根本不存在。
 
 ### ② `capture`：**不**检查 owner
 
@@ -335,12 +341,15 @@ CHECK ((failure_reason IS NOT NULL) = (state IN ('failed','reversed')))
 ```
 
 > `[9:04:44]` ...a **version**, bumped by **every write, for optimistic concurrency**. A **unique key on the user and their idempotency key, so a retry finds this transfer instead of creating another.** And **a check that ties the failure reason to the states that need one.**
+> **译文**：……一个 version，每次写都加一，用于乐观并发。一个用户加他的幂等键上的唯一键，这样重试找到这笔转账而不是再造一笔。还有一条检查把失败原因和需要它的那些状态绑在一起。
 
 > `[9:05:01]` ...then **an index for the question the orchestrator asks all day: "which unfinished transfers are due?"** **Finished ones aren't even in it** [partial index].
+> **译文**：……然后一个索引，为了编排器整天在问的那个问题：「哪些未完成的转账到期了？」已完成的根本不在里面（部分索引）。
 
 ### `saga_history`：给客服看的表
 
 > `[9:05:20]` And **the saga's history: one row per try of each step, its outcome, and the detail — like the reason a wallet gave.** **When support asks "what happened to a transfer?", this table answers.**
+> **译文**：还有 saga 的历史：每一步每一次尝试一行，它的结果，以及细节——比如钱包给出的原因。当支持人员问「这笔转账怎么了？」，这张表回答。
 
 💡 这一句透露了一个常被忽略的需求：**可运维性也是功能**。账本回答"钱在哪"，history 回答"为什么"。
 
@@ -382,14 +391,17 @@ pending ──────────┤
 💡 **状态机测试的价值在于"禁止"那一半。** 正向路径会被集成测试覆盖，**反向路径（不该发生的转移）永远不会被真实流量触发**——除非你用测试强制。
 
 > `[9:11:17]` ...cheap to write, and **it'll catch the day someone adds a state and forgets an arrow.**
+> **译文**：……写起来便宜，而且它会抓住哪天有人加了一个状态、却忘了加一条箭头。
 
 ---
 
 ## 11. Exactly-once 的三个支柱
 
 > `[9:16:44]` Now **the one idea that makes the orchestrator correct: exactly-once delivery doesn't exist.** Any step can run twice: **we crash after the wallet said yes, before we wrote it down** — or **a call times out, and we can't know if it worked.**
+> **译文**：现在，让编排器正确的那个想法：精确一次投递不存在。任何步骤都可能跑两次：我们在钱包说了 yes 之后、把它记下来之前崩溃——或者一次调用超时，我们没法知道它成没成。
 
 > `[9:17:22]` So **every step is idempotent**: **the hold's ID is the transfer's ID, and asking again finds it done.**
+> **译文**：所以每一步都幂等：hold 的 ID 就是转账的 ID，再问一次就发现它已经做了。
 
 | # | 机制 | 解决什么 |
 |---|---|---|
@@ -410,6 +422,7 @@ pending ──────────┤
 ## 12. `saga.go`：每个状态一个"步骤 + 两条出路"
 
 > `[9:19:17]` The saga itself has, **for each state that isn't final: the step to run, where success leads, and where a rejection leads.**
+> **译文**：saga 本身对每个非终态都有：要跑的步骤、成功去哪、被拒去哪。
 
 ```go
 var steps = map[State]step{
@@ -448,6 +461,7 @@ var steps = map[State]step{
 ## 13. `run` 循环：四个旋钮和一次明确的"不做"
 
 > `[9:20:35]` ...and **four knobs**: **10 transfers per claim**, a **lease of 10 seconds** — **comfortably longer than one step, which the wallet client caps at 3 seconds**; if a step could outlive its lease, another worker would start the same step while the first is still running — **safe, thanks to idempotency, but wasteful**; **poll every second**, and **retries that start at a second**.
+> **译文**：……以及四个旋钮：每次认领 10 笔转账，10 秒的租约——比一步舒服地长，钱包客户端把一步限在 3 秒；如果一步可能活得比它的租约长，另一个 worker 会在第一个还在跑时开始同一步——多亏幂等所以安全，但浪费；每秒轮询一次，以及从一秒开始的重试。
 
 💡 **"safe but wasteful"** —— 这个判断很诚实。lease 太短不会导致错误，只会导致重复调用。**所以他把 lease 设成 step 超时的 3 倍多。**
 
@@ -469,6 +483,7 @@ var steps = map[State]step{
 ### `context.WithoutCancel`
 
 > `[9:21:55]` ...**each step gets a `context.WithoutCancel`** — a step that [writes] in the saga table, and does it.
+> **译文**：……每一步拿到一个 context.WithoutCancel——在 saga 表里写入、并把它做完的一步。
 
 💡 为什么？如果直接用请求的 ctx，**客户端一挂断，正在执行的 hold 会被取消**——但那个 hold 可能已经在 wallet 侧提交了。**saga 的步骤不能被 HTTP 请求的生命周期管着。**
 
@@ -495,6 +510,7 @@ var steps = map[State]step{
 ### `202` 只在"新转账"时唤醒 orchestrator
 
 > `[9:25:25]` ...then 202, with the transfer, and a `Location` header — the URL to poll. And **only for a new transfer, wake the orchestrator.**
+> **译文**：……然后 202，带转账，以及一个 Location 头——去轮询的 URL。而且只对新的转账，唤醒编排器。
 
 💡 重试不该唤醒（因为那笔已经在跑了）。
 
@@ -557,6 +573,7 @@ Alice 余额：35（和没转账一样）
 ### 演示 3：最可怕的那个（`9:34:05`）
 
 > `[9:34:05]` Now the scary one: **the transfer service crashing in the middle of a saga at the worst moment — right after the wallet placed the hold, before we wrote it down.**
+> **译文**：现在可怕的那个：转账服务在一个 saga 中间、在最糟的时刻崩溃——就在钱包下了 hold 之后、我们把它记下来之前。
 
 ```
 Alice 付 15 → 202 pending

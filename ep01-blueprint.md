@@ -27,6 +27,7 @@
 **译文**：……一个事件从 outbox 出来，穿过 NATS，进入通知服务发出邮件。全都被串成一个故事，**甚至是那些在 HTTP 响应已经返回给 Alice 之后才发生的事**。而这个拓扑图？**没人画它。Jaeger 只根据调用链就把它建出来了。**
 
 > `[0:01:38]` **It's never out of date because it's made from what actually happened.**
+> **译文**：它永远不会过时，因为它是由真实发生过的事生成的。
 
 💡 这句话值得单独摘出来。文档会过时，**痕迹不会**。整个可观测性章节（EP14/EP19）存在的理由就这一句。
 
@@ -104,6 +105,7 @@
 **译文**：**破了第一条，分会在四舍五入里消失。破了第二条，你无法证明钱去了哪里。破了其余几条，就会有人被扣两次、账户透支、或者在崩溃中丢钱。**
 
 > `[0:07:53]` Keep these five in mind, **every single episode comes back to at least one of them.**
+> **译文**：记住这五条——后面每一集都至少会回到其中一条。
 
 ### 我的补充：把五条规则变成一张可检验的表
 
@@ -122,14 +124,18 @@
 ## 2. 为什么是 Go（四个理由 + 一个诚实的代价）
 
 > `[0:11:09]` Before we set anything up, **two questions you should always ask: why this language, and why this architecture?**
+> **译文**：在动手搭任何东西之前，有两个问题你永远该先问：为什么用这门语言，为什么用这个架构？
 
 💡 这个提问方式本身就值得学：**先问"为什么不用默认选项"，再动手。**
 
 > `[0:11:15]` **First**, it compiles to a single static binary. No runtime to install, no virtual machine — copy one file into a tiny container, and it runs.
+> **译文**：第一，它编译成单个静态二进制。不用装运行时、不用虚拟机——把一个文件复制进一个小容器，它就能跑。
 >
 > `[0:11:28]` **Second**, concurrency is built into the language. Goroutines are cheap, and context gives every request a deadline and a way to cancel it.
+> **译文**：第二，并发是语言内置的。goroutine 很便宜，而 context 给每个请求一个截止时间和取消方式。
 >
 > `[0:11:43]` **Third**, the standard library is made for servers: HTTP, JSON, crypto, and structured logging, all built-in and stable.
+> **译文**：第三，标准库就是为服务器写的：HTTP、JSON、加密、结构化日志，全都内置且稳定。
 >
 > `[0:11:54]` **Fourth**, it's boring on purpose. A small language, one formatting style, fast builds, and **code that whoever is on call can read at 3 in the morning**. And code written for Go 1 back in 2012 **still compiles today**.
 
@@ -142,6 +148,7 @@
 ### 他也解释了为什么不选别的
 
 > `[0:12:41]` Java, Kotlin, and C# are excellent, **mature** choices for payments, with heavier runtimes and more framework. Node gets you started fast, but you'll **fight harder for type safety** and CPU-heavy work. Rust gives you more control and more guarantees **for a much steeper learning curve**. For network services that a team has to run and maintain for years, **Go sits in a very comfortable middle**.
+> **译文**：Java、Kotlin、C# 是支付领域优秀而成熟的选择，代价是更重的运行时和更多框架。Node 上手快，但你要为类型安全和 CPU 密集任务打更多架。Rust 给你更多控制和保证，代价是陡得多的学习曲线。对一个团队要运行维护多年的网络服务来说，Go 停在一个非常舒服的中间位置。
 
 💡 注意他的诚实结构：每个替代方案都是"**优点 + 代价**"，没有一个是被贬低的。
 
@@ -150,6 +157,7 @@
 ## 3. 微服务：他不推销，他算计
 
 > `[0:13:03]` Now, microservices — **let's be honest about them, because they're oversold.**
+> **译文**：现在说微服务——我们诚实一点，因为它们被过度吹捧了。
 
 然后他用了四组"收益 / 代价"：
 
@@ -191,6 +199,7 @@
 **译文**：所以有一条规矩：**服务之间绝不 import 对方的内部**……它们只通过网络、通过契约通信，**就好像它们住在不同仓库里一样**。这样以后拆仓库只是**一个无聊的下午，不是一次重写**。
 
 > `[0:18:34]` The alternative is a repository per service... but every shared change turns into a release of a shared library, version bumps across five repos, and a few weeks where services disagree about what a contract looks like. For one team and five services, **one repo is simply less work.**
+> **译文**：另一种做法是每个服务一个仓库……但每次共享改动都会变成发布一个共享库、在五个仓库里升版本号，然后有几周各服务对契约的理解不一致。对一个团队、五个服务来说，一个仓库就是更省事。
 
 💡 **注意这条规矩没有任何工具强制。** 它和 EP6 的锁顺序一样，是**约定**。而它一旦被破坏（wallet import transfer），`boring afternoon` 就变成了 `rewrite`。
 
@@ -199,12 +208,15 @@
 ## 5. Docker Compose：三个决定
 
 > `[0:19:51]` Instead of installing all of that on your machine, we describe it in one docker compose file. Anyone who clones the repo gets **the exact same versions with one command**, and can throw it all away just as easily.
+> **译文**：与其把那些都装到你的机器上，我们在一个 docker compose 文件里描述它们。任何 clone 仓库的人用一条命令就拿到完全相同的版本，也能同样轻易地全部丢掉。
 
 > `[0:20:12]` Our compose file is also **documentation** — a new teammate reads this one file and knows exactly what the system depends on.
+> **译文**：我们的 compose 文件也是一份文档——新同事读这一个文件，就知道系统依赖了什么。
 
 ### 5.1 为什么 `postgres:17-alpine`
 
 > `[0:20:20]` ...pinned to the major version means **we get bug fixes but never a surprise upgrade**.
+> **译文**：……钉住大版本号意味着我们拿得到 bug 修复，但永远不会遇到意外的升级。
 
 💡 钉 major 而不是钉死补丁版本：拿得到安全修复，拿不到破坏性变更。
 
@@ -225,6 +237,7 @@
 ### 提示：那条会让你丢数据的命令
 
 > `[0:23:24]` `docker compose down` stops and removes the containers but **keeps the volume**, so your data survives. `docker compose down -v` **removes the volumes too**, which gives you a completely fresh database. That's handy — and also **exactly how you lose your local data by accident**, so use it on purpose.
+> **译文**：docker compose down 停止并删除容器，但保留 volume，所以数据还在。docker compose down -v 连 volume 也删掉，给你一个全新的数据库。这很方便——也正是你不小心丢掉本地数据的方式，所以要故意用它。
 
 💡 记住这条。EP5 的迁移**会要求你**跑一次 `down -v`，因为旧的测试数据会被迁移判定成 system account 然后撞上唯一索引。
 
@@ -233,26 +246,32 @@
 ## 6. 服务骨架：五个决定
 
 > `[0:23:44]` Today it's just a skeleton: a server that starts, answers a health check, and stops cleanly. But **every service in this course has this same skeleton**, so let's get it right.
+> **译文**：今天它只是一个骨架：一个能启动、能回答健康检查、能干净停止的服务器。但本课程里每个服务都是这个同样的骨架，所以我们要把它做对。
 
 ### ① slog：结构化日志
 
 > `[0:24:08]` `slog` is Go's structured logger, in the standard library since 1.21. Structured means every line is **a message plus key-value pairs**, instead of a sentence with values glued into it — so later **a machine can filter on them**: show me every line for this wallet ID.
+> **译文**：slog 是 Go 的结构化日志器，1.21 起在标准库里。结构化意味着每一行是「一条消息 + 若干键值对」，而不是把值粘进一句话里——这样以后机器可以按它们过滤：把某个钱包 ID 的所有行都给我。
 
 > `[0:24:37]` The text handler prints them in a readable `key=value` format... **in production you'd want JSON, and in episode 4 that becomes a config option.** And it writes to **standard output, not to a file** — collecting logs is the platform's job. Docker, Kubernetes, or a log shipper reads standard output, so **the service never has to manage, rotate, or clean up log files.**
+> **译文**：文本 handler 用可读的 key=value 打印……生产上你会想要 JSON，第 4 集那会变成一个配置项。而且它写到标准输出，不写文件——收集日志是平台的事。Docker、Kubernetes 或者日志搬运工读标准输出，所以服务永远不用管理、轮转或清理日志文件。
 
 💡 最后半句是 12-factor 的一条硬规矩：**应用不应该知道日志去哪了。** 它只负责写到 stdout。
 
 ### ② 用标准库的路由（Go 1.22+）
 
 > `[0:25:00]` Since Go 1.22, the standard library's `ServeMux` understands **methods and wildcards** in its patterns. `GET /healthz` only matches GET requests. Before that you'd reach for a third-party router just for this.
+> **译文**：从 Go 1.22 起，标准库的 ServeMux 懂模式里的方法和通配符。GET /healthz 只匹配 GET 请求。在此之前，你仅为了这个就得上第三方路由库。
 
 ### ③ 为什么不注册健康检查的日志在别处 / 为什么叫 `healthz`
 
 > `[0:25:25]` A health endpoint is how a load balancer or Kubernetes knows this instance is alive, **so keep it cheap**. And the **z** at the end of `healthz` — it's an old convention, **so the path never clashes with a real route**.
+> **译文**：健康检查端点是负载均衡器或 Kubernetes 判断这个实例活着的方式，所以要保持它廉价。而 healthz 结尾那个 z 是个老约定，这样这条路径永远不会和真实路由撞上。
 
 ### ④ `ReadHeaderTimeout`：防 Slowloris
 
 > `[0:26:12]` ...our router, and a `ReadHeaderTimeout`. **A client that opens a connection and then sends its headers one byte at a time** — an attack called **slowloris** — gets cut off after 5 seconds, instead of holding a connection open forever.
+> **译文**：……我们的路由，以及一个 ReadHeaderTimeout。一个打开连接、然后一个字节一个字节发 header 的客户端——这攻击叫 slowloris——5 秒后被切断，而不是永久占住一个连接。
 
 💡 这个攻击为什么有效：每个连接占一个 goroutine + 一个文件描述符。慢到极限的连接能让服务器耗尽资源而不触发任何"正常"的限流。
 
@@ -305,8 +324,10 @@
 ### 7.4 退出顺序
 
 > `[0:30:21]` ...and then "server stopped". On the way out, **the deferred calls run in reverse order** — `cancel` then `stop`.
+> **译文**：……然后「server stopped」。退出路上，deferred 调用按相反顺序执行——cancel，然后 stop。
 
 > `[0:30:47]` Read top to bottom, that's the shape of every service in this course: **build the dependencies, start serving in the background, wait for a signal, shut down in order.** The dependencies will grow — a database pool, NATS, a gRPC server — and **each one gets closed in that last section**.
+> **译文**：从上往下读，这就是本课程每个服务的形状：建好依赖、在后台开始服务、等信号、按顺序关闭。依赖会变多——数据库池、NATS、gRPC 服务器——而每一个都在最后那段被关掉。
 
 💡 EP3 会把这条规矩推进一格：**关闭顺序必须和启动顺序相反**，而且**连接池必须最后关**（因为还在跑的请求要用它）。
 
@@ -315,6 +336,7 @@
 ## 8. 实测：405 是白送的
 
 > `[0:32:00]` Now the same path but with POST: **405 Method Not Allowed, and an `Allow` header listing GET and HEAD.** We didn't write any of that — **the method in our route pattern did**, and the `GET` route answers `HEAD` requests too, for free.
+> **译文**：现在同一条路径改用 POST：405 Method Not Allowed，外加一个列出 GET 和 HEAD 的 Allow 头。这些都不是我们写的——是路由模式里的那个方法做到的，而且 GET 路由会顺手回答 HEAD 请求。
 
 💡 这就是 1.22 之后标准库路由的价值：**它把 HTTP 语义都实现了**，你只声明"这个方法 + 这个路径"。
 
@@ -323,6 +345,7 @@
 ## 9. 静态二进制
 
 > `[0:32:49]` ...the single static binary: `go build -o` to put it in a file outside the project, and let's check its size: **under 10 megabytes, with the Go runtime and everything it needs inside.** And for Linux from this Mac, just set `GOOS` and `GOARCH`: a **statically linked Linux executable, no runtime, no shared libraries to install**. That's what goes into a tiny container image later in the course.
+> **译文**：……单个静态二进制：用 go build -o 放到项目外的文件里，看看大小：不到 10 兆，Go 运行时和它需要的一切都在里面。而在这台 Mac 上产出 Linux 版本，只要设 GOOS 和 GOARCH：一个静态链接的 Linux 可执行文件，没有运行时、没有要装的共享库。这就是后面要放进小容器镜像里的东西。
 
 ---
 
@@ -386,6 +409,7 @@ srv := &http.Server{
 ### ③ `signal.NotifyContext` 之后必须 `stop()`
 
 > `[0:29:08]` `stop` releases the signal handling when `main` returns.
+> **译文**：stop 在 main 返回时释放对信号的处理。
 
 如果不 `stop()`，这个进程会**永久接管 SIGTERM**——在测试里这会导致后续测试收不到信号。这是 `defer stop()` 的意义，不是形式主义。
 

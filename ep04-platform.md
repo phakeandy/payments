@@ -27,6 +27,7 @@
 ## 1. 中间件链：顺序不是风格，是因果
 
 > `[2:08:13]` A middleware in Go is nothing magic. It's **a function that takes an HTTP handler and returns another handler** which wraps it. It can run code **before** calling the next handler, **after** it, or **decide not to call it at all**.
+> **译文**：Go 里的中间件一点也不神秘。它是一个「接收 HTTP handler、返回另一个包住它的 handler」的函数。它可以在调用下一个 handler 之前跑代码、之后跑，或者干脆决定不调用它。
 
 > `[2:08:37]` And **the order matters**. The outermost layer sees the request first and the response last.
 
@@ -77,6 +78,7 @@ func Chain(h http.Handler, mw ...Middleware) http.Handler {
 ## 2. 配置：两条规则 + 一个反常识的做法
 
 > `[2:09:00]` The idea comes from the **12-factor app**: the same build runs in every environment, and **only the environment changes**, so settings come from environment variables. But environment variables are just strings. We want them **parsed once, at startup, into a typed config struct**, so the rest of the code works with an `int` or a `time.Duration` and **never touches `os.Getenv` again**.
+> **译文**：这个想法来自 12-factor app：同一个构建在每个环境里跑，只有环境变化，所以设置来自环境变量。但环境变量只是字符串。我们要它们在启动时被解析一次，装进一个有类型的配置结构体，这样其余代码处理的是 int 或 time.Duration，并且再也不碰 os.Getenv。
 
 ### 2.1 两条规则
 
@@ -136,16 +138,19 @@ func parse[T any](e *env, key string, def T, parse func(string) (T, error)) T
 **译文**：注意它是**函数，不是方法**。**Go 的方法不能有自己的类型参数**，所以这是惯用的绕法。
 
 > `[2:13:23]` ...so a timeout can be written as `5s`, or `1m30s`. **Any parse function from the standard library, or our own, plugs straight in.**
+> **译文**：……所以一个超时可以写成 5s 或者 1m30s。任何标准库的（或我们自己的）解析函数都能直接插进来。
 
 ### 2.7 测试怎么写
 
 > `[2:13:39]` ...in package `config_test`, **so we only use the exported API**. We build an `env` from a map with **three bad values**... Both typed values should fall back to their defaults, and **the error must mention all three bad variables, not just the first one — which is the whole point of collecting problems.**
+> **译文**：……放在 config_test 包里，所以我们只用导出的 API。我们用一个 map 建 env，里面有三个坏值……两个有类型的值都该回退到默认值，而错误必须提到全部三个坏变量，而不是只有第一个——这正是收集问题的意义。
 
 ---
 
 ## 3. 日志：slog 的四个决定
 
 > `[2:14:53]` Instead of formatting a sentence, you log **a message plus key-value pairs**. In development, the **text** handler prints them as `key=value`, easy to read in a terminal. In production, the **JSON** handler prints one JSON object per line — log collectors like Loki, Datadog, or CloudWatch **parse that without any regular expressions**, so you can filter on `status=500`, or on one request ID.
+> **译文**：不是去格式化一句话，你记录的是「一条消息加若干键值对」。开发环境里文本 handler 打印成 key=value，在终端里好读。生产环境里 JSON handler 每行打印一个 JSON 对象——Loki、Datadog、CloudWatch 这类日志收集器不用任何正则就能解析它，于是你可以按 status=500 或者某个 request id 过滤。
 
 > `[2:15:34]` **Every line should also say which service wrote it, and which version.** When five services ship logs to one place, and a bug appears right after a deploy, those are the first things you'll filter on.
 
@@ -168,6 +173,7 @@ func parse[T any](e *env, key string, def T, parse func(string) (T, error)) T
 ### 3.3 与 EP3 呼应：logger 自己什么都不写
 
 > `[2:15:57]` ...and **a logger never writes anything itself. It hands each record to a handler**, which we'll wrap in a few minutes.
+> **译文**：……而 logger 自己从不写任何东西。它把每条记录交给一个 handler，几分钟后我们会包一层。
 
 💡 记住这句。下一节的整个 trick 就建立在这上面。
 
@@ -178,6 +184,7 @@ func parse[T any](e *env, key string, def T, parse func(string) (T, error)) T
 ### 4.1 需求
 
 > `[2:18:05]` Picture a user who reports that a transfer failed. The request came in through our gateway... into the transfer service, which called the wallet service. **That's three services and dozens of log lines, mixed in with thousands of other requests. How do you find the right ones?**
+> **译文**：设想一个用户报告转账失败。请求从我们的网关进来……进到 transfer 服务，它又调了 wallet 服务。那是三个服务、几十行日志，混在成千上万其他请求里。你怎么找到对的那几行？
 
 > `[2:18:23]` You give every request an ID at the edge and pass it along in a header: `x-request-id`. **Each service reuses the ID it receives, puts it on every log line, and sends it on to the next service.**
 
@@ -242,6 +249,7 @@ func (h contextHandler) WithGroup(name string) slog.Handler {
 **译文**：**为什么还要校验一个入站的 ID？** 因为这个 header 来自客户端，而我们**会把它复制进日志和响应里**。不检查的话，客户端可以发一个**一兆字节长的** ID，或者一个**带换行、后面跟着一行假日志**的 ID。
 
 > `[2:23:32]` So we accept **at most 64 letters, digits, dashes, and underscores**. Anything else is quietly replaced with a fresh ID.
+> **译文**：所以我们最多接受 64 个字母、数字、连字符和下划线。其他任何内容都被静默换成一个新 ID。
 
 💡 这是**日志注入（log injection）**：如果日志是 JSON，换行无害；如果日志是 text，攻击者能伪造一整行 `level=ERROR msg="payment failed" ...`，而你的告警规则会信它。**他的解法是白名单，不是转义**——白名单更容易验证。
 
@@ -254,6 +262,7 @@ func (h contextHandler) WithGroup(name string) slog.Handler {
 ### 6.1 得先包住 ResponseWriter
 
 > `[2:23:59]` There's a problem though. **The standard response writer doesn't tell you which status code the handler wrote, or how many bytes.** So we wrap it.
+> **译文**：但有个问题。标准 response writer 不告诉你 handler 写了哪个状态码，也不告诉你写了多少字节。所以我们包一层。
 
 ```go
 type statusRecorder struct {
@@ -264,6 +273,7 @@ type statusRecorder struct {
 ```
 
 > `[2:24:18]` `WriteHeader` remembers **the first** status code and passes it on — **only the first, because writing the header twice is a bug and the first one is what the client actually received.**
+> **译文**：WriteHeader 记住第一个状态码并把它传出去——只有第一个，因为写两次 header 是 bug，而客户端真正收到的是第一个。
 
 > `[2:24:45]` ...and if a handler calls `Write` **without calling `WriteHeader` first, `net/http` sends a 200.** So that's what we record.
 
@@ -286,12 +296,14 @@ type statusRecorder struct {
 ### 6.4 两个小决定
 
 > `[2:26:16]` **We log the path, not the full URL**, because query strings can contain things you don't want in logs, **like tokens or email addresses**. And in JSON **a duration is written as a number of nanoseconds, which log tools can graph directly.** If your team prefers milliseconds, that's a one-line change.
+> **译文**：我们记 path，不记完整 URL，因为 query string 里可能带着你不想进日志的东西，比如 token 或邮箱地址。而在 JSON 里，一个时长被写成纳秒数，日志工具可以直接画图。如果你们团队偏好毫秒，那是一行改动。
 
 ---
 
 ## 7. `apperr`：错误分类，只此一处
 
 > `[2:26:35]` The goal: **the domain code says what went wrong, and the HTTP layer decides how to say it.**
+> **译文**：目标：领域代码说「出了什么错」，HTTP 层决定「怎么说」。
 
 | 语义 | HTTP |
 |---|---|
@@ -340,6 +352,7 @@ fmt.Println(e == nil)  // false
 ### 7.3 排序保证确定性
 
 > `[2:28:56]` ...and `Error` lists the invalid fields **in sorted order, so messages and tests are deterministic**.
+> **译文**：……而 Error 按排序后的顺序列出非法字段，这样消息和测试都是确定的。
 
 💡 Go 的 map 遍历顺序是**随机**的。不排序 → 错误消息随机 → 测试间歇性失败 → 有人开始 `-count=1` 或者把断言改松。**一个 `slices.Sorted` 就解决了。**
 
@@ -358,6 +371,7 @@ fmt.Println(e == nil)  // false
 ### 8.2 `decodeJSON` 的三道严格限制
 
 > `[2:33:21]` `decodeJSON` is the other direction, and **it's strict on purpose**:
+> **译文**：decodeJSON 是另一个方向，而它是故意严格的：
 
 | 限制 | 防什么 |
 |---|---|
@@ -374,6 +388,7 @@ fmt.Println(e == nil)  // false
 ### 8.3 把 JSON 的错误翻译成人话
 
 > `[2:34:16]` `decodeError` turns `encoding/json`'s errors into messages **a client can actually act on**. **These are the errors clients hit most while they integrate with an API, so good messages here save real support tickets.**
+> **译文**：decodeError 把 encoding/json 的错误变成客户端真正能据以行动的消息。这些是客户端接入 API 时最常撞上的错误，所以这里的好消息能省下真实的工单。
 
 - 空 body、语法错误（带**字节偏移**）、body 中途断掉
 - 类型错（要数字给了字符串）→ **点名字段和期望类型**
@@ -381,6 +396,7 @@ fmt.Println(e == nil)  // false
 - 超过上限 → 413
 
 > `[2:35:09]` The **type** case shows why strictness pays off: **sending an amount as a string in quotes is one of the most common client bugs**, and now they find out **on their very first request**.
+> **译文**：type 那个分支说明了严格为什么值得：把金额以带引号的字符串发出去是最常见的客户端 bug 之一，而现在他们在第一个请求上就知道了。
 
 ---
 
@@ -409,6 +425,7 @@ fmt.Println(e == nil)  // false
 ### 9.3 用临时路由演示
 
 > `[2:51:18]` ...I'll add a **temporary debug route** that does nothing but panic. **This is only for the demo and we'll delete it in a minute. Routes like this must never ship.**
+> **译文**：……我会加一个临时调试路由，除了 panic 什么都不做。这只是为了演示，一分钟后我们就删掉。这种路由绝不能上线。
 
 💡 他演示完立刻删掉，而且**明说要删**。这个动作本身是教学的一部分。
 
@@ -417,14 +434,18 @@ fmt.Println(e == nil)  // false
 ## 10. 配置长什么样
 
 > `[2:43:40]` `config.go` lists everything the service can be configured with: the environment name, the HTTP address, the shutdown timeout, the log level and format, the database URL, and the pool size. **It reads it in one composite literal so you can see every variable and its default at a glance.**
+> **译文**：config.go 列出这个服务能被配置的一切：环境名、HTTP 地址、关闭超时、日志级别和格式、数据库 URL、池大小。它在一个复合字面量里读入，所以你能一眼看到每个变量和它的默认值。
 
 > `[2:44:34]` **It reads almost like documentation, which is exactly what you want from configuration code.**
+> **译文**：它读起来几乎像文档，而这正是你对配置代码的期望。
 
 💡 这是配置代码的设计目标：**一个字面量 = 一份完整的环境变量文档**。不需要另外维护 README 表格。
 
 > `[2:44:34]` The log format's default **depends on the environment** — text in development, JSON in production — **and `LOG_FORMAT` can still override it.**
+> **译文**：日志格式的默认值取决于环境——开发环境 text，生产环境 JSON——而 LOG_FORMAT 仍然可以覆盖它。
 
 > `[2:45:01]` ...then a range check on the pool size using `Invalid()`, so **it's reported along with everything else**.
+> **译文**：……然后是用 Invalid() 做的池大小范围检查，所以它会和其他问题一起被报出来。
 
 ---
 
@@ -444,6 +465,7 @@ fmt.Println(e == nil)  // false
 💡 这也是 EP5 里 `walletID()` 解析失败返回 404 而不是 400 的同一条原则：**减少客户端要处理的分支**。
 
 > `[2:47:43]` ...and `ErrorLog` redirects `net/http`'s messages like **TLS handshake failures** into slog at warning level, **so nothing escapes our structured logs.**
+> **译文**：……而 ErrorLog 把 net/http 的消息，比如 TLS 握手失败，以 warning 级别重定向进 slog，所以什么都逃不出我们的结构化日志。
 
 💡 这些漏网的日志正是 `http.Server.ErrorLog` 默认打到 stderr 的东西。不接住它们，你的日志里就会混进非 JSON 行，然后 Loki 的 JSON 解析器会在那一行失败。
 
@@ -462,6 +484,7 @@ fmt.Println(e == nil)  // false
 ### ② 版本号来自 `git describe`
 
 > `[2:49:57]` Look at the version: **the short commit hash from `git describe`, with `-dirty`** because we have uncommitted changes.
+> **译文**：看这个版本号：来自 git describe 的短 commit hash，带 -dirty，因为我们有未提交的改动。
 
 💡 一条日志里带 `service` + `version` + `request_id`，就足以从"用户截图"定位到"哪一行代码"。这是 EP4 三个功能的**乘积**意义。
 
@@ -502,6 +525,7 @@ EP5 的 deposit 请求只有 `{"amount":2500,"currency":"USD"}`，几十字节�
 | **service**（读懂了但不允许：负数 / 不支持的币种） | 422 | 这是**要展示给用户的错误** |
 
 > `[2:28:50]` ...**clients can treat the first as a bug in their code, and the second as something to show the user.**
+> **译文**：……客户端可以把前者当成自己代码的 bug，把后者展示给用户看。
 
 💡 这个区分比"422 是校验错误"这条教科书说法有用得多。**它回答的是"客户端拿到之后该干什么"。**
 

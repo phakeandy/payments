@@ -13,10 +13,12 @@
 ## 0. 为什么不要直接调用
 
 > `[7:55:52]` **Why events?** When money moves, other parts of the system care. **A notification service wants to tell Bob he got paid, fraud checks want to see every transfer, analytics wants all of it.**
+> **译文**：为什么要事件？钱一动，系统的其他部分就关心。通知服务想告诉 Bob 他收到钱了，风控想看到每一笔转账，分析想要全部。
 
 ### 直接调用的三个问题
 
 > `[7:56:22]` The direct way: **the wallet calls each of them right after the transfer.** But then:
+> **译文**：直接的做法：钱包在转账之后立刻去调它们每一个。但那样的话：
 
 | # | 问题 | 原话 |
 |---|---|---|
@@ -58,6 +60,7 @@
 ## 1. NATS 的两层：Core vs JetStream
 
 > `[7:57:40]` NATS comes in **two layers**.
+> **译文**：NATS 有两层。
 
 | | **Core NATS**（纯消息） | **JetStream**（持久化层） |
 |---|---|---|
@@ -103,16 +106,20 @@ wallet.events.transfer.completed.v1
 ### 通配符
 
 > `[8:03:30]` ...all separated by dots, and subscribers can use **wildcards**: `*` matches **one** token, and `>` matches **everything after it**. So `wallet.events.transfer.>` is **every transfer event, in every version**.
+> **译文**：……都用点分隔，而订阅者可以用通配符：* 匹配一个 token，> 匹配它之后的一切。所以 wallet.events.transfer.> 就是每一个转账事件，任何版本。
 
 ---
 
 ## 3. 流配置
 
 > `[8:03:55]` ...the stream itself: its subjects `wallet.events.>`, **file storage** locally, **three in production** where JetStream keeps every message on three servers. **Retention by limits**: events stay for **30 days**, read or not, up to a **gigabyte**, **oldest out first**.
+> **译文**：……流本身：它的 subject 是 wallet.events.>，本地用文件存储，生产上用三份，JetStream 把每条消息存在三台服务器上。按限制保留：事件留 30 天，不管读没读，上限一吉字节，最旧的先出。
 
 > `[8:04:35]` **That's what lets a new consumer replay history, or a broken one catch up after a fix.**
+> **译文**：这就是为什么新消费者能重放历史，或者一个坏掉修好之后能追上。
 
 > `[8:05:00]` ...the **duplicate window** — the same message id the stream has seen in the last **10 minutes** is acknowledged, and dropped. **Remember that one — it saves us later.**
+> **译文**：……重复窗口——同一个 message id 在最近 10 分钟内已经被这个流见过，就被确认并丢掉。记住这一条——它以后会救我们。
 
 💡 最后那半句 "it saves us later" 就是 §6 的 outbox 去重机制。**这是他有意埋的伏笔。**
 
@@ -123,6 +130,7 @@ wallet.events.transfer.completed.v1
 ### 4.1 第一版：commit 之后 publish
 
 > `[8:07:42]` ...after `once` has returned — at this point **the transfer has committed, the money moved** — so now we tell everyone. The message **waits until the stream acknowledges that it stored the message**, so if it returns without an error, **the event is saved on disk**.
+> **译文**：……在 once 返回之后——此时转账已提交，钱已经动了——所以现在我们去告诉所有人。消息会等到流确认它存下了这条消息，所以如果它没报错返回，事件就落盘了。
 
 跑通了，`nats sub` 里看到：
 
@@ -131,6 +139,7 @@ received on wallet.events.transfer.completed : {...}
 ```
 
 > `[8:09:26]` **It works. Ship it.** **Not so fast.**
+> **译文**：它能用。发布吧。别急。
 
 ### 4.2 两次写的两个方向都错
 
@@ -181,8 +190,10 @@ received on wallet.events.transfer.completed : {...}
 这是全集的中心思想：
 
 > `[8:12:53]` The fix is a pattern called the **transactional outbox**. **We can't make two systems commit together, but we can turn two writes into one.**
+> **译文**：修法是一个叫事务性 outbox 的模式。我们没法让两个系统一起提交，但我们可以把两次写变成一次。
 
 > `[8:13:17]` In the **same database transaction** as the ledger entries **and the idempotency key**, [we write the event into an outbox table]. **A crash before the commit loses both** — which is fine, **nothing happened, so there's nothing to tell.** **A crash after it loses nothing.**
+> **译文**：在和账本分录、以及幂等键同一个数据库事务里，我们把事件写进一张 outbox 表。提交前崩溃两个都丢——这没关系，什么都没发生，也就没什么要告诉别人的。提交后崩溃什么都不丢。
 
 ```
         ┌─ 一个 Postgres 事务 ────────────────┐
@@ -238,10 +249,12 @@ CREATE INDEX ON outbox (id) WHERE published_at IS NULL;   -- partial
 ### ① `bigint identity` 的顺序 = 发布顺序
 
 > `[8:15:08]` ...a `bigint identity`, **the order the events were written in, which is the order the relay publishes them in.**
+> **译文**：……一个 bigint identity，事件被写入的顺序，也就是中继发布它们的顺序。
 
 ### ② `event_id` 唯一，并且**就是** NATS message id
 
 > `[8:15:30]` The **event id, unique, which travels as the NATS message id.**
+> **译文**：事件 id，唯一，它作为 NATS 的 message id 出行。
 
 💡 一个字段服务三个目的：
 1. 聚合内的唯一标识（消费者去重用）
@@ -287,6 +300,7 @@ CREATE INDEX ON outbox (id) WHERE published_at IS NULL;   -- partial
 | 幽灵唤醒 | 不可能（只查存在的行） | **也不可能**（NOTIFY 也是事务性的） |
 
 > `[8:16:54]` One caveat for later: **at very high write rates, the relay lags** — **the relay works either way.**
+> **译文**：后面要注意一点：在极高写入速率下，中继会落后——中继两种情况都能工作。
 
 💡 他主动标了这个限制：**NOTIFY 不能替代轮询**，因为高写入率下通知会挤爆。所以他的 `run` 循环是**两者都要**（见 §9）。
 
@@ -307,6 +321,7 @@ type Event struct {
 ### ① 为什么是 uuid v7
 
 > `[8:17:39]` ...every event from every service travels in the same envelope: **an id — a version 7 UUID, so it's sorted by time** — **it's also the NATS message id, and what consumers use to recognize an event they've already handled.**
+> **译文**：……每个服务的每个事件都走同一个信封：一个 id——version 7 UUID，所以按时间有序——它同时也是 NATS 的 message id，也是消费者用来认出「已经处理过」的那个东西。
 
 💡 uuid v7 的前 48 位是毫秒时间戳，所以**按字节排序 ≈ 按时间排序**。这带来一个实际的性能好处：**索引插入是顺序的**（不像 v4 随机写导致页分裂）。
 
@@ -373,6 +388,7 @@ type Event struct {
 ### ③ 崩溃点分析（他的招牌动作）
 
 > `[8:24:49]` **For every step the question is: what if we crash right after it?**
+> **译文**：对每一步，问题都是：如果我们在它之后立刻崩溃会怎样？
 
 | 崩溃点 | 结果 | 下次运行 |
 |---|---|---|
@@ -417,16 +433,19 @@ case <-time.After(backoff): /* 查一次 */     // 定时器，空闲时翻倍
 💡 **"hijack"** 是个准确的词：这条连接从此不能还给池，不能跑别的查询。所以：
 
 > `[8:29:29]` ...if it fails we log it and try again five seconds later.
+> **译文**：……如果失败我们就记一笔，五秒后再试。
 
 ⚠️ 劫持连接意味着**池的有效容量 -1**。如果你把 `MaxConns` 设成 2，relay 就吃掉了半个池。
 
 ### ⑥ 放在哪个进程里跑
 
 > `[8:30:14]` Where should the relay run? **Inside the wallet's process as a goroutine** — **one binary to ship, it scales with the wallet**, and `SKIP LOCKED` shares the work between instances. **Or as a separate service** — it reads the wallet's database anyway. **We'll start inside the wallet**, and **the relay is its own package, so moving it out later is a new `main.go`, and nothing else.**
+> **译文**：中继该跑在哪？在钱包进程里作为一个 goroutine——只有一个二进制要发布，它随钱包一起扩缩，而 SKIP LOCKED 在实例之间分活。或者作为一个独立服务——反正它读的是钱包的数据库。我们先从钱包内部开始，而中继是它自己的包，所以以后搬出去只是一个新的 main.go，别的都不用动。
 
 ### ⑦ 用独立的 context
 
 > `[8:30:57]` In `main`, right after the idempotency cleanup, the relay gets **a context of its own, not the one that ends on Ctrl-C**. **Requests that are still finishing the readiness check** — with the outbox, **the wallet can take money while NATS is down, so it should keep taking traffic.** **And once the servers have stopped, we stop the relay, and wait for it.** If it was in the middle of a batch, **the batch rolls back, and those events go out on the next start.**
+> **译文**：在 main 里，紧接幂等清理之后，中继拿到自己的 context，不是那个在 Ctrl-C 时结束的。还在完成就绪检查的请求——有了 outbox，钱包可以在 NATS 挂着的时候收钱，所以它应该继续收流量。而服务器停下之后，我们停中继，并等它。如果它正停在一批中间，那一批回滚，那些事件在下次启动时发出去。
 
 💡 **关闭顺序**：HTTP 停 → relay 停 → 池关。而且 relay 的 ctx **不能**和 HTTP 的 ctx 共享，否则 HTTP 停止时 relay 也跟着死——**但那时可能还有事件没发完。**
 
@@ -435,8 +454,10 @@ case <-time.After(backoff): /* 查一次 */     // 定时器，空闲时翻倍
 ## 10. 演示：把 NATS 停掉
 
 > `[8:32:40]` Now the real test: **NATS goes down.** Alice pays Bob again — **201, money still moves, with NATS down.** **That's the outbox in one picture**: the wallet sends, then the relay fails to publish and tries again.
+> **译文**：现在真正的测试：NATS 挂了。Alice 又付给 Bob——201，钱照动，NATS 挂着。这就是 outbox 的一张图：钱包发送，然后中继发布失败并重试。
 
 > `[8:33:01]` `outbound buffer limit exceeded` is the client's way of saying **"I'm disconnected, and you turned my buffer off"** — exactly what we asked for. And **look at the timestamps: the waits double, on their way up to 5 seconds.**
+> **译文**：outbound buffer limit exceeded 是客户端在说「我断开了，而你把我的缓冲区关了」——正是我们要的。看时间戳：等待在翻倍，一路涨到 5 秒。
 
 > `[8:33:41]` And the event [appears] in the watching terminal, **which reconnected to** — **not a single event lost, and nobody had to do anything.** The outbox agrees: **all five published.**
 
@@ -460,8 +481,10 @@ case <-time.After(backoff): /* 查一次 */     // 定时器，空闲时翻倍
 ## 11. Durable Consumer
 
 > `[8:34:00]` ...**a durable consumer has a name, and lives on** [JetStream]. **First event: the stream.** Explicit acks: **we confirm every message, and if we don't within the AckWait, 30 seconds, it's delivered again.** `MaxDeliver` **caps the attempts, so a message that always fails can't loop forever** — **in episode 13, those go to a dead letter queue.**
+> **译文**：……持久消费者有名字，而且活在 JetStream 上。第一个事件：流。显式 ack：我们确认每条消息，如果我们在 AckWait 30 秒内没确认，它会被再投一次。MaxDeliver 给尝试次数封顶，所以一条总是失败的消息不会永远循环——第 13 集里，那些会去死信队列。
 
 > `[8:34:47]` And **since a message can arrive more than once**, a tiny consumer, to see the moving parts: `cmd/eventlog`.
+> **译文**：而既然一条消息可能到达不止一次，一个很小的消费者，用来看清各个部件：cmd/eventlog。
 
 ```go
 // 关键配置
@@ -526,6 +549,7 @@ MaxDeliver: 5
 ## 13. 他承认的债
 
 > `[8:42:18]` One thing to know: **the wallet's tests write events into the outbox of our development database**, so **the next time you start the wallet, it publishes them.** They're all test wallets, so **it's harmless here**.
+> **译文**：有一点要知道：钱包的测试会把事件写进我们开发数据库的 outbox，所以你下次启动钱包，它会把它们发出去。它们都是测试钱包，所以在这里无害。
 
 ⚠️ 这是 EP3 那笔债的**第二次收利息**（第一次在 EP5 的迁移）。这次的表现是：**开发库的 outbox 里会积累测试事件，然后真的被发布到 NATS。**
 

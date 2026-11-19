@@ -70,6 +70,7 @@
 💡 这是整个工具链最漂亮的一处闭合：**migrations 既是执行的脚本，又是类型检查的输入**。没有这一步，你就得维护一份 `schema.sql` 和一堆迁移，然后它们会漂移。
 
 > `[1:25:31]` `sql_package: pgx/v5` tells sqlc to generate code for pgx's native interface instead of `database/sql`.
+> **译文**：sql_package: pgx/v5 告诉 sqlc 为 pgx 的原生接口生成代码，而不是 database/sql。
 
 ### 2.1 三个 emit 选项
 
@@ -139,18 +140,21 @@ ORDER BY created_at;
 ### 3.5 一行注释变成 godoc
 
 > `[1:30:16]` A comment between the name line and the query ends up as the godoc comment too.
+> **译文**：name 行和查询之间的注释，也会变成 godoc 注释。
 
 💡 于是 `go doc` 里能直接看到"这个查询干什么"。这是让生成代码**有人味**的小细节。
 
 ### 3.6 其余注解
 
 > `[1:30:26]` `:execrows` returns how many rows a statement affected, `:batchexec` queues many statements into a single round trip, `:copyfrom` uses PostgreSQL's COPY protocol for fast bulk inserts, and `sqlc.narg` marks a parameter as **explicitly nullable**, which is the clean way to write an optional filter.
+> **译文**：:execrows 返回一条语句影响了多少行，:batchexec 把多条语句排进一次往返，:copyfrom 用 PostgreSQL 的 COPY 协议做快速批量插入，而 sqlc.narg 把参数标记为显式可空——这是写可选过滤条件的干净方式。
 
 ---
 
 ## 4. 生成的代码里，最重要的是 `db.go`
 
 > `[1:32:04]` `db.go` is the smallest file, and the most interesting one. `DBTX` is an interface with **just the three methods** the queries need: `Exec`, `Query`, and `QueryRow`.
+> **译文**：db.go 是最小的文件，也是最有意思的一个。DBTX 是一个接口，只有查询需要的三个方法：Exec、Query、QueryRow。
 
 ```go
 type DBTX interface {
@@ -165,6 +169,7 @@ type DBTX interface {
 **译文**：pgx 的连接池有这三个方法，单条连接有，**事务也有**。`New` 把其中任何一个包装成 `Queries`，`WithTx` 返回一个在事务上运行的副本。
 
 > `[1:32:24]` Keep that in mind because **it's the key to running several queries atomically**.
+> **译文**：记住这一点，因为它是「让多条查询原子地一起跑」的关键。
 
 💡 这是全集最需要理解的一行设计：**事务性不是靠"记住用 tx"，而是靠类型流动。** `WithTx` 之后你手里的 `*Queries` 只能走事务，想绕过都不行。
 
@@ -187,6 +192,7 @@ type DBTX interface {
 ## 5. 演示：故意写错一个列名
 
 > `[1:34:05]` In `ledger.sql` I'll make a **very believable mistake**, and call the column `entry_id` instead of `id`, and regenerate.
+> **译文**：在 ledger.sql 里我会犯一个非常可信的错误：把列叫 entry_id 而不是 id，然后重新生成。
 
 ```
 ledger.sql:15: column "entry_id" does not exist
@@ -197,6 +203,7 @@ ledger.sql:15: column "entry_id" does not exist
 **译文**：如果 SQL 是写在 Go 字符串里手写的，这会**编译通过**，然后在生产环境的第一个请求上失败。而这里它在我笔记本上就失败了，甚至还没生成任何 Go 代码。
 
 > `[1:34:44]` In CI, you can run `sqlc diff`, which **fails the build if someone edited a query but forgot to regenerate**.
+> **译文**：在 CI 里你可以跑 sqlc diff，它会在「有人改了查询但忘了重新生成」时让构建失败。
 
 💡 这两条合起来是一个完整的防线：**生成期拦截 + CI 拦截**。少了 `sqlc diff`，就有人会改了 SQL 忘了 regenerate，然后仓库里跑的是旧查询。
 
@@ -291,8 +298,10 @@ ledger.sql:15: column "entry_id" does not exist
 ### 7.2 每个方法第一个参数都是 ctx
 
 > `[1:43:47]` And notice that every method takes a context as its first argument. That's how **deadlines and cancellation flow** through the whole service. If the client disconnects or a timeout expires, pgx stops waiting and returns an error straight away.
+> **译文**：注意每个方法的第一个参数都是 context。截止时间和取消就是这样流过整个服务的。如果客户端断开或者超时到期，pgx 立刻停止等待并返回错误。
 
 > `[1:44:12]` For a hard limit on the server side as well, Postgres has a `statement_timeout` setting, which you can set **per database or per connection**.
+> **译文**：服务端也要一条硬上限的话，Postgres 有 statement_timeout，可以按数据库或按连接设置。
 
 💡 两道防线：客户端 ctx（应用侧）+ `statement_timeout`（数据库侧）。后者连"应用已经死了但查询还在跑"都能杀掉。
 
@@ -315,6 +324,7 @@ ledger.sql:15: column "entry_id" does not exist
 ## 8. 全集的中心：`inTx`
 
 > `[1:46:18]` Remember, a ledger transaction is one journal row plus several entries, and they must be stored **together, or not at all**.
+> **译文**：记住，一笔账本交易是一行 journal 加若干条分录，它们必须一起存进去，或者一条都不存。
 
 ```go
 func (s *Store) inTx(ctx context.Context, fn func(q *walletdb.Queries) error) error {
@@ -374,6 +384,7 @@ func (s *Store) inTx(ctx context.Context, fn func(q *walletdb.Queries) error) er
 **译文**：`Begin` 用 Postgres 默认的 **read committed** 开启事务……对于插入一笔全新的交易和它的分录，这完全正确。但**读出余额然后花掉它，是另一回事**。两笔转账可能都看到同一个 20 美元。
 
 > `[1:51:36]` That's what episode 6 is about: row locks with `SELECT ... FOR UPDATE` and **a consistent lock order, so concurrent transfers can never deadlock**.
+> **译文**：那就是第 6 集的内容：用 SELECT ... FOR UPDATE 做行锁，以及一致的加锁顺序，让并发转账永远不会死锁。
 
 💡 注意他在这里就把 EP6 的答案说完了（行锁 + 一致顺序）。EP6 讲的是**为什么**需要这两样——正是我那份 EP6 讲义干的事。
 
@@ -400,8 +411,10 @@ func (s *Store) inTx(ctx context.Context, fn func(q *walletdb.Queries) error) er
 ### 10.3 关闭顺序必须和启动相反
 
 > `[1:54:00]` And at the very end, **after the HTTP server has stopped**, we close the pool. Order matters here: shutdown waits for in-flight requests to finish, and those requests **may still be using the database**. Close the pool first, and they'd fail right at the finish line.
+> **译文**：而在最末尾，HTTP 服务器停下之后，我们关掉池。顺序在这里很重要：关闭会等待在途请求跑完，而那些请求可能还在用数据库。先关池，它们就会在终点线前失败。
 
 > `[1:54:47]` **Starting up in one order and tearing down in the reverse is a pattern you'll see in every service we build.**
+> **译文**：以一种顺序启动、以相反顺序拆除，是你会在我们建的每个服务里看到的模式。
 
 💡 这就是 EP16 `draining` 的雏形。
 
@@ -420,6 +433,7 @@ func (s *Store) inTx(ctx context.Context, fn func(q *walletdb.Queries) error) er
 ### 11.1 每个测试自己建账户
 
 > `[1:57:06]` Every test creates **its own accounts, so tests never step on each other's data**, which means they can run **in parallel**.
+> **译文**：每个测试建自己的账户，所以测试永不踩到彼此的数据，这意味着它们可以并行跑。
 
 💡 这是并发测试的前提：**测试之间没有共享状态**，才敢 `t.Parallel()`。EP15 会把这个思想升级成"每个包一套容器"。
 
@@ -454,10 +468,13 @@ func (s *Store) inTx(ctx context.Context, fn func(q *walletdb.Queries) error) er
 ## 12. 他 recaps（2:02:39 – 2:04:49）
 
 > `[2:03:18]` We set up sqlc, we write plain SQL, and it generates type-safe Go, **checked against the schema from our migrations**, so a broken query fails at generate time, not in production.
+> **译文**：我们搭好 sqlc，写纯 SQL，它生成类型安全的 Go，并用 migrations 里的 schema 校验——所以一个坏查询在生成期就失败，而不是在生产环境。
 
 > `[2:04:11]` Our `inTx` helper commits on success and rolls back on any error or panic, so **a transaction and its entries are posted atomically**.
+> **译文**：我们的 inTx helper 成功时提交、任何错误或 panic 时回滚，所以一笔交易和它的分录是原子地被记下的。
 
 > `[2:04:31]` And our first integration tests run against the real Postgres, **skip cleanly without one**, and prove the database rejects an unbalanced transaction.
+> **译文**：而我们第一批集成测试跑在真的 Postgres 上，没有数据库时会干净地跳过，并证明数据库拒绝一笔不平衡的交易。
 
 ---
 
@@ -492,6 +509,7 @@ postgres://...?sslmode=disable&statement_timeout=5000&lock_timeout=2000
 ### ④ keyset pagination 的 `before=0 → MaxInt64`
 
 > `[1:45:21]` 0 means start from the newest, so we swap it for the largest possible int64.
+> **译文**：0 意味着从最新的开始，所以把它换成最大的 int64。
 
 小技巧，好用，但要记住它的前提：**id 是递增的 `bigint identity`**。如果哪天换成 UUID 主键，这个技巧直接失效。
 

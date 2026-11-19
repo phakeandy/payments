@@ -40,14 +40,17 @@
 ### 客户端做的事：1 秒超时 → 重试
 
 > `[4:30:59]` ...and **like every sensible HTTP client, ours has a timeout** — here one second, with `--max-time`.
+> **译文**：……而且像每个理智的 HTTP 客户端一样，我们的有超时——这里一秒，用 --max-time。
 
 ```
 operation timed out, after one second, with zero bytes received.
 ```
 
 > `[4:31:14]` **From the app's point of view, the transfer may or may not have happened. It has no way to know.**
+> **译文**：从 app 的角度看，这笔转账可能发生了，也可能没发生。它无从知道。
 
 > `[4:31:29]` So it does what **every retry policy in the world** does: it tries again. Same body, same transfer, no timeout this time. And after the slow network's two seconds, **a 201 with the transaction ID**.
+> **译文**：于是它做了世界上每个重试策略都会做的事：再试一次。同样的 body，同样那笔转账，这次不设超时。而在慢网络的这两秒之后，一个 201 和交易 ID。
 
 ### 结果
 
@@ -68,6 +71,7 @@ operation timed out, after one second, with zero bytes received.
 ## 2. 为什么客户端**必须**重试（这是全集的分析基石）
 
 > `[4:32:43]` So what went wrong? **A request can fail in three places, and they look identical to the client.**
+> **译文**：那到底出了什么问题？一个请求可能在三个地方失败，而它们在客户端看来一模一样。
 
 ```
 ① 请求在路上丢了        → 服务端根本没看到它
@@ -76,6 +80,7 @@ operation timed out, after one second, with zero bytes received.
 ```
 
 > `[4:32:58]` **The request can be lost on the way — the server never saw it — and a retry is exactly right.**
+> **译文**：请求可能在路上丢了——服务端从没见过它——那么重试完全正确。
 >
 > `[4:33:12]` **The server can fail halfway — maybe a crash, or a database error — the transaction rolls back, nothing happened — and again a retry is right.**
 >
@@ -96,22 +101,26 @@ operation timed out, after one second, with zero bytes received.
 **"客户端不该重试"是错的，"服务端应该拒掉重试"也是错的。唯一正确的答案是让重试在语义上安全。**
 
 > `[4:33:41]` When a retry arrives, **the server has to recognize it, and answer it, without doing the work again.** In other words, **the operation has to be idempotent: doing it twice has the same effect as doing it once.**
+> **译文**：当重试到达时，服务端必须认出它，并回答它，而不重新做一遍活。换句话说，这个操作必须幂等：做两次和做一次效果相同。
 
 ---
 
 ## 3. 幂等键的契约
 
 > `[4:33:59]` The standard way to do that, used by the major payment APIs, is an **idempotency key**. The client sends a header `Idempotency-Key` with a unique value.
+> **译文**：标准做法——各大支付 API 都用——是幂等键。客户端发一个 Idempotency-Key 头，值唯一。
 
 ### 客户端的那一条规则
 
 > `[4:34:14]` **The rule for the client is simple: one key per operation.** It generates a random UUID **before the first attempt**, and sends **the same key on every retry of that operation**. **A new transfer gets a new key.**
+> **译文**：对客户端的规则很简单：一个操作一个键。它在第一次尝试之前生成一个随机 UUID，并在这次操作的每次重试上发同一个键。一笔新转账拿一个新键。
 
 💡 "**一次操作**一个 key"——注意不是"一个请求一个 key"，也不是"一分钟一个 key"。**一次业务意图**。这个定义是客户端唯一需要理解的东西。
 
 ### 哪些请求需要它（他的划分很精确）
 
 > `[4:34:44]` We'll **require the header on every request that moves money** — deposits and transfers. **Reads don't need it, because reading a balance twice is already harmless. Creating a wallet doesn't need it either — one wallet per owner and currency is a unique constraint, so a retry gets a conflict, not a second wallet.**
+> **译文**：我们会要求每个动钱的请求都带这个头——充值和转账。读不需要它，因为读两次余额本来就无害。建钱包也不需要——一个主人一种币种一个钱包是唯一约束，所以重试拿到的是一个冲突，不是第二个钱包。
 
 | 操作 | 需要 key？ | 为什么 |
 |---|---|---|
@@ -125,8 +134,10 @@ operation timed out, after one second, with zero bytes received.
 ### 作用域与保留期
 
 > `[4:34:59]` ...and **keys are scoped per caller**, so Alice's keys can never collide with Bob's.
+> **译文**：……而且键是按调用方隔离的，所以 Alice 的键永远不会和 Bob 的撞上。
 
 > `[4:35:16]` We remember each key for **24 hours**, which is **far longer than any retry policy waits**.
+> **译文**：我们记住每个键 24 小时，这远远长于任何重试策略会等待的时间。
 
 ⚠️ 但这一集的实现里，**所有 caller 都是 `"anonymous"`**（`[4:53:57]` 明说）。他留了这个洞，EP8/EP10 才补。见 §11。
 
@@ -183,6 +194,7 @@ operation timed out, after one second, with zero bytes received.
 ## 5. 全集最重要的决定：key 什么时候标记完成
 
 > `[4:37:13]` Now **the most important decision of the episode: when is the key marked as completed?**
+> **译文**：现在本集最重要的决定：这个键什么时候被标记为完成？
 
 ### 错误版本：先提交，再标记（`4:37:13 – 4:37:42`）
 
@@ -231,6 +243,7 @@ BEGIN → 转账 → 标记 key=completed + 存响应 → COMMIT
 ### 5.2 `Store.WithTx`：让 wallet 加入别人的事务
 
 > `[4:39:10]` The wallet joins that transaction through a small `WithTx` method on the store — **a store bound to the caller's transaction**, the same idea as sqlc's own `WithTx`. **The service code doesn't change at all.**
+> **译文**：钱包通过 store 上一个小的 WithTx 方法加入那个事务——一个绑定到调用方事务的 store，和 sqlc 自己的 WithTx 是同一个思路。服务代码一行都不用改。
 
 ```go
 // store.go
@@ -286,6 +299,7 @@ CREATE INDEX ON idempotency_keys (expires_at);
 💡 这是本集最容易被忽略的一句。**唯一索引在 Postgres 里有一个副作用：并发插入同一个键时，第二个 INSERT 会阻塞，直到第一个事务提交或回滚。** 所以 `INSERT ... ON CONFLICT DO NOTHING` 天然提供了"同一时刻只有一个 claim 成功"的保证。
 
 > `[4:47:26]` ...`ON CONFLICT DO NOTHING`. If the key is new, we inserted it. **If another request is inserting the very same key at this moment, PostgreSQL makes us wait on the primary key until that transaction commits, and then we conflict. So two claims can never both win.**
+> **译文**：……ON CONFLICT DO NOTHING。如果键是新的，我们插进去了。如果另一个请求此刻正在插入同一个键，PostgreSQL 让我们在主键上等它提交，然后我们冲突。所以两个认领永远不可能都赢。
 
 ### `fingerprint`：32 字节代表整个请求
 
@@ -305,10 +319,13 @@ CREATE INDEX ON idempotency_keys (expires_at);
 ### `response_body` 存字节，不存 JSON
 
 > `[4:40:38]` ...the response we sent, **the status code and the body, as raw bytes, so a replay is exact.**
+> **译文**：……我们发出去的那个响应，状态码和 body，以原始字节存下来，所以重放是精确的。
 
 > `[4:44:44]` ...`JSON` builds one **exactly the way `httpx.WriteJSON` does, with the trailing newline, so a fresh response and a replay are the same bytes.**
+> **译文**：……JSON 构造它的方式和 httpx.WriteJSON 完全一样，带那个结尾换行，所以新鲜响应和重放是同样的字节。
 
 > `[4:45:02]` ...`Write` sends it, **adding the replayed header only for a replay. Everything else — the status, the content type, and the body — is exactly what the first request got.**
+> **译文**：……Write 把它发出去，只在重放时加上那个表示重放的 header。其他一切——状态、content type、body——都正是第一个请求拿到的。
 
 💡 **逐字节一致**是他的原话（`byte for byte`）。这也是为什么 `idempotency.JSON()` 必须复用 `httpx` 的序列化路径——否则首次响应有 trailing newline、重放没有，字节就不同了。
 
@@ -319,12 +336,14 @@ CHECK ((status = 'completed') = (response_code IS NOT NULL))
 ```
 
 > `[4:41:22]` **A check constraint ties the status to the response**: a completed key **always has one**, and an in-progress key **never does**.
+> **译文**：一个 check 约束把状态和响应绑在一起：已完成的键总是有一个响应，进行中的键永远没有。
 
 💡 和 EP5 的 `CHECK ((kind='wallet') = (owner_id IS NOT NULL))` 是**同一个语法、同一个思想**：**两个字段的取值必须一致，一致性写在数据库里。**
 
 ### `expires_at` 索引
 
 > `[4:41:37]` ...and an index on `expires_at`, **so the cleanup job can find old keys without reading the whole table.**
+> **译文**：……还有一个 expires_at 上的索引，这样清理任务不用读整张表就能找到旧键。
 
 ---
 
@@ -429,6 +448,7 @@ WHERE scope=$1 AND key=$2 AND status='in_progress';   -- ← 乐观锁
 ## 10. Redis：只是快速路径，**允许失败**
 
 > `[4:56:43]` So far, every request costs **two short PostgreSQL transactions**, even a replay. **Retries tend to come in storms** — a whole fleet of phones reconnecting at once — so let's answer replays from memory. **But PostgreSQL stays the source of truth**: the key commits with the money, and **every decision can still be made from PostgreSQL alone.**
+> **译文**：到目前为止，每个请求都花两个短的 PostgreSQL 事务，连重放也是。重试往往成风暴而来——一整批手机同时重连——所以让我们从内存里回答重放。但 PostgreSQL 仍是事实来源：键和钱一起提交，而每个决定仍然可以只靠 PostgreSQL 做出。
 
 ### 三条硬约束
 
@@ -476,8 +496,10 @@ WHERE scope=$1 AND key=$2 AND status='in_progress';   -- ← 乐观锁
 ## 11. 测试：20 个并发同 key
 
 > `[5:07:02]` ...the test this episode is really about. Alice gets **ten dollars**, then **one transfer of a dollar, sent 20 times at once, with the same key** — a client retrying in a panic. We reuse `concurrently` from last episode, **with its starting gun**, so all 20 really overlap.
+> **译文**：……本集真正想讲的测试。Alice 拿到十美元，然后是一笔一美元的转账，同时发 20 次，用同一个键——一个惊慌重试的客户端。我们复用上一集的 concurrently，带它的发令枪，所以 20 个真的重叠。
 
 > `[5:07:31]` ...each goroutine puts its response in a **buffered channel**, which needs no lock, and after close, we can range over it. Then we sort the responses: **a 409 was refused while the first one ran; a 201 with the replayed header is a replay; a 201 without it actually ran**; anything else fails the test.
+> **译文**：……每个 goroutine 把它的响应放进一个带缓冲的 channel，不需要锁，close 之后我们可以对它 range。然后我们给响应分类：409 是第一个在跑时被拒绝；带重放头的 201 是重放；不带它的 201 是真的执行了；其他任何情况都让测试失败。
 
 **收集与断言**：
 
@@ -492,6 +514,7 @@ WHERE scope=$1 AND key=$2 AND status='in_progress';   -- ← 乐观锁
 ### 他跑了三次
 
 > `[5:08:30]` ...run it three times, verbose with `-run storm`. **Three runs, each time exactly one request ran**, and the logline shows what happened to the other 19: **refused while it was running, or replayed after it finished.**
+> **译文**：……跑三遍，用 -run storm 开 verbose。三遍里，每次恰好一个请求执行了，而日志行说明了另外 19 个怎么了：在它运行时被拒绝，或者它结束后被重放。
 
 💡 为什么跑三次：**19 个里面 409 和 201-replayed 的比例每次都不一样**（取决于调度），但"恰好一个真的执行了"必须每次成立。**这正是断言该断言的东西。**
 
@@ -524,6 +547,7 @@ WHERE scope=$1 AND key=$2 AND status='in_progress';   -- ← 乐观锁
 ### ① 24 小时的 TTL 是在赌什么
 
 > `[4:35:16]` We remember each key for 24 hours, which is far longer than any retry policy waits.
+> **译文**：我们记住每个键 24 小时，这远远长于任何重试策略会等待的时间。
 
 风险场景：客户端在第 25 小时重试一个"以为失败"的操作 → **双重扣款**。
 
