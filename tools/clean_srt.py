@@ -60,7 +60,11 @@ def to_sentences(segs):
 
 
 def split_long(start, end, text, limit=28):
-    """过长的句子按逗号/分号切开，时间戳按词数比例分摊到 [start, end] 内。"""
+    """过长的句子按逗号/分号切开，时间戳按词数比例分摊到 [start, end] 内。
+
+    但有的集（ep04）whisper 一个逗号都不吐，靠逗号切会整集变一行，
+    所以再加一条硬限：超过 2*limit 词就按词边界强制切。
+    """
     words = text.split()
     if len(words) <= limit:
         return [(start, text)]
@@ -68,7 +72,9 @@ def split_long(start, end, text, limit=28):
     pieces, cur = [], []
     for w in words:
         cur.append(w)
-        if len(cur) >= limit and w.endswith((",", ";", ":")):
+        if len(cur) < limit:
+            continue
+        if w.endswith((",", ";", ":")) or len(cur) >= 2 * limit:
             pieces.append(" ".join(cur))
             cur = []
     if cur:
@@ -86,7 +92,8 @@ def split_long(start, end, text, limit=28):
 
 def main():
     src, dst = sys.argv[1], sys.argv[2]
-    offset = int(float(sys.argv[3])) if len(sys.argv) > 3 else 0
+    arg = sys.argv[3].strip() if len(sys.argv) > 3 else ""
+    offset = int(float(arg)) if arg else 0  # 空串不能崩：上游算错时按 0 处理
 
     lines = []
     for s, e, text in to_sentences(parse_srt(src)):

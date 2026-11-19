@@ -22,7 +22,8 @@ HOTWORDS="idempotency key, outbox, transactional outbox, relay, JetStream, NATS,
 secs() { # 1:17:49 → 秒
 	local IFS=:
 	set -- $1
-	echo $((${1:-0} * 3600 + ${2:-0} * 60 + ${3:-0}))
+	# 10# 前缀：bash 会把 08/09 当八进制，报 "value too great for base"
+	echo $((10#${1:-0} * 3600 + 10#${2:-0} * 60 + 10#${3:-0}))
 }
 
 episodes=("$@")
