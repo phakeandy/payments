@@ -20,13 +20,13 @@
 
 > `[2:57:28]` Five endpoints: a `POST /v1/wallets` opens a wallet, a `GET` on a wallet's ID reads it back, its balance has its own URL, `POST` to its deposits adds money, and entries list the wallet's ledger entries one page at a time.
 
-| 方法 | 路径 | 语义 |
-|---|---|---|
-| `POST` | `/v1/wallets` | 开户 |
-| `GET` | `/v1/wallets/{id}` | 读钱包 |
-| `GET` | `/v1/wallets/{id}/balance` | 读余额（**单独 URL**） |
-| `POST` | `/v1/wallets/{id}/deposits` | 存钱 |
-| `GET` | `/v1/wallets/{id}/entries` | 分页流水 |
+| 方法   | 路径                        | 语义                   |
+| ------ | --------------------------- | ---------------------- |
+| `POST` | `/v1/wallets`               | 开户                   |
+| `GET`  | `/v1/wallets/{id}`          | 读钱包                 |
+| `GET`  | `/v1/wallets/{id}/balance`  | 读余额（**单独 URL**） |
+| `POST` | `/v1/wallets/{id}/deposits` | 存钱                   |
+| `GET`  | `/v1/wallets/{id}/entries`  | 分页流水               |
 
 > `[2:57:47]` Notice the conventions: **the path names the thing, and the HTTP method says what we do with it.** Everything lives under `v1`, so the day we need a breaking change, **a v2 can live right next to it while existing clients keep working.**
 
@@ -60,12 +60,12 @@
 
 ### 2.3 一张"谁能拒绝什么"的表
 
-| 层 | 拒绝什么 | 例子 | 返回 |
-|---|---|---|---|
-| handler / decoder | 读不懂的请求 | 坏 JSON、未知字段、`"2500"` 当数字 | **400** |
-| service | 读懂了但不允许 | 负数、不支持的币种、币种不匹配 | **422**（字段级） |
-| store | 数据库层面不可能 | 唯一索引冲突、触发器不平衡 | 翻译成领域错误 |
-| **PostgreSQL** | **上面三层全都失手时** | CHECK / FK / 延迟触发器 | `23514` / `23505` |
+| 层                | 拒绝什么               | 例子                               | 返回              |
+| ----------------- | ---------------------- | ---------------------------------- | ----------------- |
+| handler / decoder | 读不懂的请求           | 坏 JSON、未知字段、`"2500"` 当数字 | **400**           |
+| service           | 读懂了但不允许         | 负数、不支持的币种、币种不匹配     | **422**（字段级） |
+| store             | 数据库层面不可能       | 唯一索引冲突、触发器不平衡         | 翻译成领域错误    |
+| **PostgreSQL**    | **上面三层全都失手时** | CHECK / FK / 延迟触发器            | `23514` / `23505` |
 
 > `[3:28:36]` ...**two kinds of client errors, and they come from different layers.** A request we can't even **read** — broken JSON, an unknown field, or a number where we need an integer — is a **400**, from the decoder. A request that's **perfectly readable, but asks for something we won't do** — like a negative amount, or an unsupported currency — is a **422**, from the service, with a message per field.
 
@@ -97,6 +97,7 @@ type Money struct {
 **译文**：有些 API 发十进制字符串，比如 `"10.50"`——**那是精确的**。但**每个客户端都得解析它**，而且 `"10.50"` 和 `"10.5"` 是**同一个金额的两个不同字符串**。整数是精确的，而且**可以直接相加和比较**。这就是为什么 **Stripe、Adyen 和大多数支付 API 都用最小单位**。
 
 💡 这段的三个层次值得记：
+
 1. 浮点 **不精确**（技术事实）
 2. 字符串 **精确但不规范**（`"10.5"` vs `"10.50"`）
 3. 整数 **精确且规范** → **可直接比较、相加、做唯一索引**
@@ -117,11 +118,11 @@ type Money struct {
 
 > `[3:01:34]` ...an int64 holds **over 9 quintillion minor units**. **JavaScript numbers are only exact up to 2^53**, about 9 quadrillion — which is still **$93 trillion in cents**. ...we cap a single deposit at **100 million minor units, a million dollars**, so **a typo with a few extra zeros gets caught**, and no amount ever gets anywhere near those limits.
 
-| 类型 | 精确上限 | 折算成美分 |
-|---|---|---|
-| `int64` | 9.22 × 10^18 | 天文数字 |
+| 类型        | 精确上限           | 折算成美分   |
+| ----------- | ------------------ | ------------ |
+| `int64`     | 9.22 × 10^18       | 天文数字     |
 | JS `Number` | 2^53 ≈ 9.0 × 10^15 | **$93 万亿** |
-| `MaxAmount` | 10^8 | **$100 万** |
+| `MaxAmount` | 10^8               | **$100 万**  |
 
 💡 **关键洞察**：真正的约束不是 Go 的 `int64`，是**前端 JavaScript 的 2^53**。JSON 里的数字会被 `JSON.parse` 成 double。所以**上限必须远小于 2^53**，否则前端会静默丢精度。
 
@@ -196,6 +197,7 @@ ALTER TABLE accounts ALTER COLUMN kind DROP DEFAULT;
 ```
 
 💡 三个知识点的组合：
+
 1. **PG 11+ 加带默认值的列不重写表**（之前的版本会）
 2. 有默认值 → 老行有值 → 能通过 NOT NULL
 3. **立刻删掉默认值** → 新行必须显式指定
@@ -405,11 +407,11 @@ store 找不到 settlement 账户
 
 > `[3:20:51]` **Instead of a position, the client sends the ID of the last entry it saw, and we ask for entries with a smaller ID.** With the index we just added on `(account_id, id)`, **Postgres jumps straight to that point, so page 500 is as fast as page 1.** And **new entries get bigger IDs, so they can't push anything around.**
 
-| | OFFSET | keyset |
-|---|---|---|
-| 第 500 页 | 读 10,020 行 | 索引直接跳到位置 |
-| 翻页中有人写入 | **重复或跳过** | 不受影响 |
-| 能否跳页 | 能 | **不能** |
+|                | OFFSET         | keyset           |
+| -------------- | -------------- | ---------------- |
+| 第 500 页      | 读 10,020 行   | 索引直接跳到位置 |
+| 翻页中有人写入 | **重复或跳过** | 不受影响         |
+| 能否跳页       | 能             | **不能**         |
 
 ### 10.3 `limit + 1`：不用 COUNT 就知道有没有下一页
 
@@ -487,15 +489,15 @@ store 找不到 settlement 账户
 
 > `[3:36:33]` **The comment matters: these rows depend on each other, so the subtests run in order, not in parallel.**
 
-| # | 请求 | 期望 |
-|---|---|---|
-| 1 | 新 owner + USD | 201 |
-| 2 | 同一 owner + 同一币种 | 409 |
-| 3 | 同一 owner + 另一币种 | 201 |
-| 4 | 小写 `usd` | 422 |
-| 5 | 不支持的币种 | 422 |
-| 6 | owner 不是 UUID | 422 |
-| 7 | 未知字段 | 400 |
+| #   | 请求                  | 期望 |
+| --- | --------------------- | ---- |
+| 1   | 新 owner + USD        | 201  |
+| 2   | 同一 owner + 同一币种 | 409  |
+| 3   | 同一 owner + 另一币种 | 201  |
+| 4   | 小写 `usd`            | 422  |
+| 5   | 不支持的币种          | 422  |
+| 6   | owner 不是 UUID       | 422  |
+| 7   | 未知字段              | 400  |
 
 💡 第 2 行依赖第 1 行成功。所以 **table-driven 不等于 parallel**——这是两件可以分开决定的事，很多人把它们绑在一起。
 
@@ -524,6 +526,7 @@ store 找不到 settlement 账户
 **译文**：一笔存款**现在还做不到**两件事：它**扛不住重试**——如果网络丢了响应、客户端再试一次，**Alice 会被付两次**——那是第 7 集的幂等键。而且**存款只会加钱，所以它不会透支任何东西**——在并发下安全地把钱移出一个钱包，是下一集的事。
 
 💡 注意这两个洞**都在 EP5 的"正确"里藏着**：
+
 - 幂等洞 → 违反规则三
 - 并发洞 → EP6 才补规则四
 

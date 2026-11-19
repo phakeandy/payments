@@ -1,11 +1,11 @@
-# EP6 深读：Moving Money Safely
+# EP6 讲义：Moving Money Safely
 
-> 这份讲义从 `upstream/ep06` 的**真实代码**出发。视频字幕还没转出来（机器在排队），
-> 但 EP6 的核心不是他讲了什么，是那 111 行代码为什么必须长成那样。
-> 时间戳等字幕到了我补。
-
-- 分支 `ep06`，diff：`+538 / -31`
+- **视频** `3:41:14 – 4:27:27`（46 分）｜分支 `ep06` ｜ diff：`+538 / -31`（14 个文件）
+- **转录** `media/ep06.txt`（196 句，6,139 词）
+- 时间戳是视频绝对时间
 - 关键文件：`internal/wallet/transfer.go`（57 行）、`internal/platform/postgres/retry.go`（54 行）、`internal/wallet/ledger.go`（`inTx`）
+
+> 这一集他会**故意制造一个死锁**，然后当着镜头把隔离级别改成 `REPEATABLE READ`，让你看一个已经通过的测试**重新失败**。
 
 ---
 
@@ -223,6 +223,48 @@ tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 
 这就是为什么代码显式写 `pgx.ReadCommitted`，而不是用默认值：默认值可以被服务器配置（`default_transaction_isolation`）改掉，这个依赖关系太致命，必须写死在代码里。
 
+### 5.1 他当场验证了这一点（`4:07:18 – 4:08:32`）
+
+> `[4:07:18]` **If the other transaction had updated the row we lock, Postgres would raise a serialization error. But it only locked it, so nothing tells us.**
+
+**译文**：**如果另一个事务 UPDATE 了我们锁的那一行，Postgres 会抛一个序列化错误。但它只是锁了那一行，所以没有什么会告诉我们。**
+
+💡 这句话**逐字确认了上一节的推理**：`REPEATABLE READ` 的冲突检测**只能看到被写的行**，而这里锁的是 `accounts`、写的是 `entries`。**检测不到，所以静默放行。**
+
+然后他做了实验：
+
+> `[4:08:03]` But **don't take my word for any of this** — let's try it. In `ledger.go`, `Begin` starts every transaction; let's ask for `repeatable read`.
+
+> `[4:08:32]` **It overdraws again. Same locks, same code, a stricter isolation level, and Alice is negative again.** Beware: **isolation levels are subtle, and tests are how you find out what your code really does.**
+
+**译文**：**它又透支了。同样的锁、同样的代码、更严格的隔离级别，而 Alice 又变成负数了。** 小心：**隔离级别很微妙，而测试是你发现自己代码真正行为的方式。**
+
+**注意他是用“更严格”的隔离级别让一个已经通过的测试失败的。** 这个演示比任何文档都有说服力。
+
+### 5.2 换成 `SERIALIZABLE` 呢
+
+> `[4:08:48]` Now serializable — and this time both transfer tests. **Different failure: no negative balance this time; the overdraft test got its two successes.** Instead, transfers failed with **could not serialize access due to read-write dependencies among transactions**, SQLSTATE `40001`. **Postgres saw the stale reads and refused to commit them.**
+
+> `[4:09:33]` **That's by design: it may abort too often, but never too rarely.** And every one of those failures means the same thing: **nothing happened, please try again.**
+
+**译文**：**这是设计使然：它可能中止得太频繁，但绝不会太罕见。** 而每一个这样的失败都意味着同一件事：**什么都没发生，请再试一次。**
+
+| 隔离级别 | 透支测试 | 转账测试 | 结论 |
+|---|---|---|---|
+| `READ COMMITTED` + 显式锁 | ✅ 通过 | ✅ 通过 | **他选的** |
+| `REPEATABLE READ` | ❌ **又透支了** | — | 静默失效，最危险 |
+| `SERIALIZABLE` | ✅ 通过 | ⚠️ 大量 `40001` | 正确但浪费 |
+
+### 5.3 serializable 的真实代价
+
+> `[4:14:56]` **That's the real cost of serializable under contention: it's always correct, but it throws work away, and the busier a wallet is, the more it throws away.**
+
+> `[4:15:46]` ...**if someone runs our code at serializable one day, it keeps working.**
+
+**译文**：**这就是 serializable 在竞争下的真实代价：它永远正确，但它会丢弃工作，而一个钱包越忙，它丢掉的越多。**
+
+💡 最后那句是**重试机制的隐性价值**：它让同一份代码在**任何**隔离级别下都能工作。
+
 ---
 
 ## 6. 死锁：机制与复现
@@ -244,6 +286,16 @@ Postgres 有个后台的**死锁检测器**。当事务等锁超过 `deadlock_ti
 ```
 ERROR: deadlock detected  (SQLSTATE 40P01)
 ```
+
+他现场拿到的是：
+
+> `[4:03:02]` **`deadlock detected`, SQLSTATE `40P01`** — and **it took many seconds, for a test that should take about one.**
+
+> `[4:03:31]` **Alice sends money to Bob, while Bob sends money to Alice**... **transfer two wants Alice's row, and waits for transfer one. Neither can ever finish. That's a deadlock.** **Postgres doesn't wait forever.**
+
+**译文**：**`deadlock detected`，SQLSTATE `40P01`**——而且**一个本该一秒就跑完的测试花了十几秒。** **Alice 给 Bob 转钱，同时 Bob 给 Alice 转钱**……**transfer two 想要 Alice 的行，等着 transfer one。两个都永远结束不了。** **Postgres 不会永远等下去。**
+
+⚠️ 字幕把 `40P01` 转成了 `40101`。**错误码是 `40P01`。**
 
 所以症状很有特征：**平时很快，偶发 1 秒延迟，然后一个错误。**
 
@@ -288,6 +340,18 @@ SHOW deadlock_timeout;   -- 1s
 
 ### 6.4 为什么排序能彻底消灭死锁
 
+> `[4:05:25]` ...that's why **the ordering lives in one place, right next to the lock.** And notice that **the lock order is independent of the money flow.**
+
+**译文**：……这就是为什么**排序逻辑只存在于一个地方，就在锁的旁边。** 而且注意**锁的顺序和钱的流向无关。**
+
+💡 “independent of the money flow” 这句很重要：A→B 和 B→A 走**同一条加锁路径**。如果他写成 `lock(from); lock(to)`，排序就会散落在每个调用点。
+
+实验证明：
+
+> `[4:04:58]` [It] **passed in about a second**. Most of the 200 transfers went through, some were refused for insufficient funds — **which is exactly right with random amounts** — and **not a single deadlock.**
+
+**译文**：**大约一秒就通过了。** 200 笔转账大部分成功了，一些因为余额不足被拒——**在随机金额下这完全正确**——而且**一次死锁都没有。**
+
 如果把每一对账户按 `bytes.Compare` 排成 `(first, second)`，那么所有事务获取锁的顺序，都是同一个**全序**上的**升序**。
 
 于是等待图不可能有环：假设有环 `T1→T2→…→Tn→T1`，每一步都表示"持有一个较小编号的锁，等一个较大编号的锁"（因为每个事务都是升序取锁）。那么 `T1` 等的锁编号 > 它持有的编号，而 `Tn` 持有的编号 > `T1` 持有的……沿着环推下去会得到 `编号 < 编号` 的矛盾。
@@ -319,6 +383,16 @@ return s.store.PostTransaction(ctx, NewTransaction{...})   // 没有 LockAccount
 
 ### 层三：`40001` 与 `40P01` 的语义特别适合重试
 
+> `[4:09:49]` [The helper] **retries exactly two errors: `40001`, a serialization failure, and `40P01`, a deadlock. For both, PostgreSQL guarantees that the transaction was rolled back, and nothing was written.** **Anything else** — a constraint violation, a lost connection — **is returned as is.**
+
+> `[4:10:04]` **It retries the whole transaction from `Begin`. You can't just repeat the last statement: an aborted transaction refuses every statement until it's rolled back.**
+
+> `[4:10:18]` And that means **the function we retry must have no side effects outside the transaction — no emails, no HTTP calls.** It's bounded: **five attempts, then it gives up and returns the real error, so a pathological case fails loudly instead of spinning forever.**
+
+**译文**：……**它重试整个事务，从 `Begin` 开始。你不能只重复最后一条语句：一个已中止的事务会拒绝每一条语句，直到它被回滚。** 而这意味着**我们重试的那个函数在事务之外必须没有副作用——不发邮件、不发 HTTP 请求。** 它是有界的：**五次尝试，然后放弃并返回真正的错误。**
+
+💡 “an aborted transaction refuses every statement” —— 这正是为什么 `Retry` 包的是**整个 `tryTx`**，而不是重试某一条语句。
+
 ```go
 switch pgErr.Code {
 case "40001", "40P01": // serialization_failure, deadlock_detected
@@ -342,6 +416,16 @@ case "40001", "40P01": // serialization_failure, deadlock_detected
 ---
 
 ## 8. 抖动：为什么退避必须是随机的
+
+> `[4:10:33]` ...and between attempts it sleeps with what's called **full jitter**: **not a fixed delay, a random time between zero and a ceiling, and the ceiling doubles every time.** **If two transactions just collided, and both retried after exactly 10 milliseconds, they'd collide again. Randomness spreads them out.**
+
+**译文**：……而且在尝试之间它睡一段时间，这叫 **full jitter**：**不是固定延迟，而是零到某个上限之间的随机值，而且上限每次都翻倍。** **如果两个事务刚刚撞了，然后都在恰好 10 毫秒后重试，它们会再撞一次。随机性把它们摊开。**
+
+> `[4:11:04]` ...so it goes in `internal/platform/postgres`, in `retry.go`. **`MaxAttempts` is five, and it's exported so tests can refer to it.**
+
+> `[4:12:00]` ...if **the client hangs up while we're backing off, we stop right away**. Then the ceiling doubles: **10, 20, 40, 80 milliseconds.**
+
+**译文**：……如果**客户端在我们退避的时候挂断了，我们立刻停止**。然后上限翻倍：**10、20、40、80 毫秒。**
 
 ```go
 backoff := 10 * time.Millisecond
@@ -422,7 +506,15 @@ if ok, _ := tally(t, errs); ok != 2 {
 
 ### 洞一：锁协议靠自觉
 
-前面说过，`Deposit` 不拿锁。今天它是安全的（只加钱）。但如果有人加一个"提现"：
+前面说过，`Deposit` 不拿锁。他自己把这件事说得更明白：
+
+> `[4:15:46]` **The price of explicit locks is that they're opt-in. Every future code path that takes money out of a wallet has to take the lock too.**
+
+**译文**：**显式锁的代价是它们是“可选参加”的。未来每一条从钱包里拿钱的代码路径，都必须自己记得拿那把锁。**
+
+💡 “opt-in” 这个词选得很准：**数据库不会强制你拿锁**，因为锁是一个动作，不是一个约束。想强制，只能靠 CHECK 约束或 SERIALIZABLE。
+
+今天它是安全的（只加钱）。但如果有人加一个“提现”：
 
 ```go
 // 假设有人这么写，忘了 LockAccount
@@ -481,7 +573,32 @@ SELECT pg_advisory_xact_lock(hashtext($1::text));
 | 可审计性 | 差（余额被覆盖） | **好**（只有 entries） | 好 |
 | 失败模式 | 数字错了没人知道 | 有人忘加锁 → 透支 | 冲突风暴 → 吞吐塌陷 |
 
-**他为什么选中间那个**：EP2 已经定下"余额不存"，而这正是支付系统最看重的东西（审计、可解释）。所以他用**应用层的复杂度**换取**数据层的单一真相**。这是清醒的取舍，不是疏忽。
+**他为什么选中间那个**：EP2 已经定下“余额不存”，而这正是支付系统最看重的东西（审计、可解释）。所以他用**应用层的复杂度**换取**数据层的单一真相**。这是清醒的取舍，不是疏忽。
+
+### 他自己怎么说这个取舍
+
+> `[4:16:22]` ...**if that's ever your bottleneck, you'd only lock the side that has a rule — but measure before you get clever.**
+
+> `[4:16:40]` **Serializable is a perfectly good default for a ledger, especially if you'd rather pay in retries than in carefulness. What matters is that you choose and test the choice.**
+
+**译文**：……**如果那真的成了你的瓶颈，你只锁有规则的那一侧——但在你比变聪明之前先测量。** **对账本来说，serializable 是一个完全合理的默认值，尤其是当你宁愿用重试付费、而不是用小心付费的时候。重要的是你做了选择，并且测试了这个选择。**
+
+💡 “you'd rather pay in retries than in carefulness” —— 这句话把两种成本并列了：
+
+| 付什么 | 得到什么 | 风险 |
+|---|---|---|
+| **重试**（serializable） | 不用每一处都记得加锁 | 高竞争时吞吐塔陷 |
+| **小心**（显式锁） | 高吞吐 | **漏一处就透支，而且测试可能拓不到** |
+
+**他选了“小心”，但前提是他把小心变成了测试。**
+
+### 他建议加的一个监控指标
+
+> `[4:13:55]` One thing I'd add in production: **a counter for retries. A few retries are normal. A sudden jump means two parts of the system started fighting over the same rows** — and **it's often the first warning, long before anything fails.**
+
+**译文**：生产上我会加一样东西：**一个重试计数器。少量重试是正常的。突然跳升意味着系统的两个部分开始争抢同一批行**——而且**它往往是最早的预警，远在任何东西失败之前。**
+
+💡 这是一个**先行指标**：重试率上浨 → 延迟上浨 → 超时 → 失败。你在第二环就能知道，而不是在第四环。
 
 ---
 
