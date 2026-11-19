@@ -64,7 +64,7 @@
 
 ### 规则一：钱是整数
 
-> `[0:06:32]` **Money is an integer.** We store cents as a 64-bit integer, plus our currency code, **never a float**, because in floating point, 10 cents plus 20 cents isn't exactly 30 cents.
+> `[0:06:30]` **Money is an integer.** We store cents as a 64-bit integer, plus our currency code, **never a float**, because in floating point, 10 cents plus 20 cents isn't exactly 30 cents.
 
 **译文**：**钱是整数。** 我们把"分"存成 64 位整数，加上币种代码，**绝不用浮点**，因为在浮点里，10 分加 20 分并不精确等于 30 分。
 
@@ -215,7 +215,7 @@
 
 ### 5.1 为什么 `postgres:17-alpine`
 
-> `[0:20:20]` ...pinned to the major version means **we get bug fixes but never a surprise upgrade**.
+> `[0:20:25]` ...pinned to the major version means **we get bug fixes but never a surprise upgrade**.
 > **译文**：……钉住大版本号意味着我们拿得到 bug 修复，但永远不会遇到意外的升级。
 
 💡 钉 major 而不是钉死补丁版本：拿得到安全修复，拿不到破坏性变更。

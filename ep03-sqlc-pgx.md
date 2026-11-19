@@ -422,11 +422,11 @@ func (s *Store) inTx(ctx context.Context, fn func(q *walletdb.Queries) error) er
 
 ## 11. 集成测试
 
-> `[2:56:12]` **A unit test with a fake database would tell us very little here.** The interesting behavior — the balance check, the foreign keys, the view — all lives in Postgres, so we test against a real Postgres.
+> `[1:56:12]` **A unit test with a fake database would tell us very little here.** The interesting behavior — the balance check, the foreign keys, the view — all lives in Postgres, so we test against a real Postgres.
 
 **译文**：**用假数据库写单元测试在这里几乎什么都证明不了。** 有意思的行为——余额检查、外键、视图——全都活在 Postgres 里，所以我们对着真的 Postgres 测试。
 
-> `[2:56:39]` The first helper connects to the database in an environment variable. **If the variable isn't set, the test is skipped instead of failing**, so `go test ./...` still passes on a machine with no Docker at all.
+> `[1:56:39]` The first helper connects to the database in an environment variable. **If the variable isn't set, the test is skipped instead of failing**, so `go test ./...` still passes on a machine with no Docker at all.
 
 **译文**：第一个 helper 连接环境变量里的数据库。**变量没设就跳过测试而不是失败**，于是 `go test ./...` 在一台完全没装 Docker 的机器上也能通过。
 

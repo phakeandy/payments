@@ -33,7 +33,7 @@
 
 **然后是这一集最关键的一段**：
 
-> `[2:08:47]` **Recover must sit inside the access log**, so that when it writes a 500, the access log **sees** that 500. And **the request ID must be outermost**, so even the access log line **carries** it.
+> `[2:08:37]` **Recover must sit inside the access log**, so that when it writes a 500, the access log **sees** that 500. And **the request ID must be outermost**, so even the access log line **carries** it.
 
 **译文**：**Recover 必须在 access log 的内侧**，这样当它写出 500 时，access log **看得见**那个 500。而 **request ID 必须在最外层**，这样连 access log 那一行都**带着**它。
 
@@ -77,7 +77,7 @@ func Chain(h http.Handler, mw ...Middleware) http.Handler {
 
 ## 2. 配置：两条规则 + 一个反常识的做法
 
-> `[2:09:00]` The idea comes from the **12-factor app**: the same build runs in every environment, and **only the environment changes**, so settings come from environment variables. But environment variables are just strings. We want them **parsed once, at startup, into a typed config struct**, so the rest of the code works with an `int` or a `time.Duration` and **never touches `os.Getenv` again**.
+> `[2:08:54]` The idea comes from the **12-factor app**: the same build runs in every environment, and **only the environment changes**, so settings come from environment variables. But environment variables are just strings. We want them **parsed once, at startup, into a typed config struct**, so the rest of the code works with an `int` or a `time.Duration` and **never touches `os.Getenv` again**.
 > **译文**：这个想法来自 12-factor app：同一个构建在每个环境里跑，只有环境变化，所以设置来自环境变量。但环境变量只是字符串。我们要它们在启动时被解析一次，装进一个有类型的配置结构体，这样其余代码处理的是 int 或 time.Duration，并且再也不碰 os.Getenv。
 
 ### 2.1 两条规则
@@ -524,7 +524,7 @@ EP5 的 deposit 请求只有 `{"amount":2500,"currency":"USD"}`，几十字节�
 | **decoder**（读不懂：坏 JSON / 未知字段 / 类型错） | 400 | 这是**客户端代码的 bug** |
 | **service**（读懂了但不允许：负数 / 不支持的币种） | 422 | 这是**要展示给用户的错误** |
 
-> `[2:28:50]` ...**clients can treat the first as a bug in their code, and the second as something to show the user.**
+> `[2:26:59]` ...**clients can treat the first as a bug in their code, and the second as something to show the user.**
 > **译文**：……客户端可以把前者当成自己代码的 bug，把后者展示给用户看。
 
 💡 这个区分比"422 是校验错误"这条教科书说法有用得多。**它回答的是"客户端拿到之后该干什么"。**

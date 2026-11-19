@@ -204,7 +204,7 @@ BEGIN → 分录 → 幂等键 → outbox 行 → COMMIT
 
 ### 5.1 那"第二次写"去哪了？
 
-> `[8:13:27]` Then **a relay, running in the background, reads the outbox and publishes each event to JetStream.** **That's still two writes** — publishing and marking as published — **but now we can retry**: the event's id as its **NATS message id**, and the stream's **duplicate window drops the copy.**
+> `[8:13:38]` Then **a relay, running in the background, reads the outbox and publishes each event to JetStream.** **That's still two writes** — publishing and marking as published — **but now we can retry**: the event's id as its **NATS message id**, and the stream's **duplicate window drops the copy.**
 
 **译文**：然后**一个后台的 relay 读 outbox，把每个事件发布到 JetStream。** **那仍然是两次写**——发布，和标记已发布——**但现在我们可以重试**：用事件的 id 当作 **NATS message id**，而流的**去重窗口会丢掉副本。**
 

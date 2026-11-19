@@ -1008,7 +1008,7 @@ if evt.ID == uuid.Nil {
 
 ## 18. 设计目标：让顺序不重要
 
-> `[10:08:01]` ...and **what about order?** Within one instance, `consume` calls `handle` **with one message at a time, per consumer**. We have two consumers, so **two at once**. For more throughput, **start more instances — they share the same durable consumer, and the server spreads the messages between them.** And `MaxAckPending` caps what's in flight across all of them. **And order? It's gone.**
+> `[10:08:08]` ...and **what about order?** Within one instance, `consume` calls `handle` **with one message at a time, per consumer**. We have two consumers, so **two at once**. For more throughput, **start more instances — they share the same durable consumer, and the server spreads the messages between them.** And `MaxAckPending` caps what's in flight across all of them. **And order? It's gone.**
 
 > **译文**：……**顺序呢？** 在一个实例内，`consume` **对一个消费者来说一次只调一条消息**。我们有两个消费者，所以**同时两条**。要更高吞吐就**多起实例——它们共享同一个持久消费者，服务器把消息分给它们**。而 `MaxAckPending` 给所有实例的同时在飞数量封顶。**那顺序呢？没了。**
 
